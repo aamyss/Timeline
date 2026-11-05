@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Timeline">
+<meta name="theme-color" content="#14213d">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Timeline</title>
+<style>
+  :root { --bg:#fff; --fg:#1f1f1f; --muted:#6b6b6b; --line:#e6e6e6; --card:#f6f6f4;
+    --green:#1d7a4f; --greenbg:#e3f3ea; --blue:#1d5fa5; --bluebg:#e6f0fb; --gray:#555; --graybg:#eeeeec;
+    --amber:#8a5300; --amberbg:#fdf0d8; --purple:#5a47b5; --purplebg:#eeecfd; --red:#a32d2d; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#1c1c1b; --fg:#ecebe6; --muted:#a3a29b; --line:#33332f; --card:#262624;
+      --green:#7fd1a6; --greenbg:#18392a; --blue:#8dbcf0; --bluebg:#173250; --gray:#c9c8c1; --graybg:#33332f;
+      --amber:#f2c06b; --amberbg:#43300f; --purple:#b8adf5; --purplebg:#2e2853; --red:#f09595; }
+  }
+  * { box-sizing:border-box; }
+  html { background:var(--bg); }
+  body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,"Noto Sans Thai",sans-serif; background:var(--bg); color:var(--fg); font-size:15px; line-height:1.45; -webkit-text-size-adjust:100%; }
+  .wrap { max-width:640px; margin:0 auto; padding:calc(8px + env(safe-area-inset-top)) 14px calc(40px + env(safe-area-inset-bottom)); }
+  .nav { display:flex; gap:8px; align-items:center; position:sticky; top:0; background:var(--bg); padding:8px 0 10px; z-index:2; }
+  .nav input { flex:1; min-width:0; font-size:16px; padding:8px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--fg); }
+  button { font-size:15px; padding:8px 12px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--fg); font-family:inherit; }
+  button.primary { background:var(--fg); color:var(--bg); border-color:var(--fg); }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin:4px 0 8px; }
+  .chip { font-size:12px; padding:2px 8px; border-radius:6px; background:var(--graybg); color:var(--gray); }
+  .chip.on { background:var(--bluebg); color:var(--blue); }
+  .chip.warn { background:var(--amberbg); color:var(--amber); }
+  .row { display:grid; grid-template-columns:58px minmax(0,1fr); gap:8px; padding:9px 0; border-top:1px solid var(--line); }
+  .time { font-variant-numeric:tabular-nums; color:var(--muted); font-size:13px; padding-top:1px; }
+  .title { word-break:break-word; }
+  .kind { font-weight:600; }
+  .sub { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-top:3px; font-size:12px; color:var(--muted); }
+  .b { font-size:11px; padding:1px 6px; border-radius:5px; }
+  .strong { background:var(--greenbg); color:var(--green); }
+  .medium { background:var(--bluebg); color:var(--blue); }
+  .self { background:var(--graybg); color:var(--gray); }
+  .off { background:var(--purplebg); color:var(--purple); }
+  .gap { background:var(--amberbg); color:var(--amber); margin:0 -14px; padding:9px 14px; border-top:none; }
+  .gap .time { color:var(--amber); }
+  a { color:var(--blue); }
+  .card { background:var(--card); border-radius:12px; padding:12px; margin-top:18px; }
+  .card h3 { margin:0 0 8px; font-size:16px; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  label { font-size:12px; color:var(--muted); display:block; margin:8px 0 3px; }
+  .card input, .card textarea { width:100%; font-size:16px; padding:8px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--fg); font-family:inherit; }
+  .err { color:var(--red); font-size:13px; min-height:18px; margin-top:6px; }
+  .empty { color:var(--muted); padding:16px 0; border-top:1px solid var(--line); }
+  .status { font-size:12px; color:var(--muted); margin-top:18px; }
+  .banner { background:var(--bluebg); color:var(--blue); border-radius:10px; padding:10px 12px; margin:6px 0 10px; font-size:14px; }
+  .hide { display:none; }
+  .link { background:none; border:none; padding:0; color:var(--muted); text-decoration:underline; font-size:12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="setup" class="hide">
+    <h2 style="font-size:20px;margin:24px 0 8px">Timeline</h2>
+    <p>This device isn't set up yet.</p>
+    <p>In the Google Sheet, open <b>Work timeline → Links and PC setup code</b> and scan the QR code with your iPhone Camera.</p>
+    <div class="card">
+      <label for="pasteLink">Or paste the setup link here</label>
+      <input id="pasteLink" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <div class="err" id="setupErr"></div>
+      <button class="primary" id="pasteSave">Set up</button>
+    </div>
+  </div>
+
+  <div id="main" class="hide">
+    <div id="installHint" class="banner hide">Set up on this device. Now tap <b>Share → Add to Home Screen</b> to install the app.</div>
+    <div class="nav">
+      <button id="prev" aria-label="Previous day">‹</button>
+      <input type="date" id="date" aria-label="Date">
+      <button id="next" aria-label="Next day">›</button>
+      <button id="reload" aria-label="Refresh">↻</button>
+    </div>
+    <div class="chips" id="shifts"></div>
+    <div class="chips" id="counts"></div>
+    <div id="list"><div class="empty">Loading…</div></div>
+
+    <div class="card" id="noteCard">
+      <h3>Add a note</h3>
+      <div class="grid2">
+        <div><label for="nFrom">From</label><input type="time" id="nFrom"></div>
+        <div><label for="nTo">To (optional)</label><input type="time" id="nTo"></div>
+      </div>
+      <label for="nCase">Case (optional)</label><input id="nCase" placeholder="123/2569">
+      <label for="nText">What you were doing</label><textarea id="nText" rows="3" placeholder="ยื่นฝากขังที่ศาล"></textarea>
+      <div class="err" id="nErr"></div>
+      <button class="primary" id="nSave">Save note</button>
+      <div class="status">Notes are saved as self-reported, with the time you wrote them. They can't be edited later; add another note to correct one.</div>
+    </div>
+    <div class="status" id="status"></div>
+    <div class="status"><button class="link" id="forget">Remove setup from this device</button></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var STORE = 'wt.cfg';
+  var KIND = {
+    file_created: 'Created', file_modified: 'Edited', file_renamed: 'Renamed', file_moved: 'Moved',
+    file_deleted: 'Deleted', file_added: 'Added', file_restored: 'Restored',
+    folder_created: 'New folder', folder_renamed: 'Folder renamed', folder_moved: 'Folder moved',
+    folder_deleted: 'Folder deleted', folder_added: 'Folder added', folder_restored: 'Folder restored',
+    calendar_event: 'Calendar', calendar_changed: 'Calendar changed', calendar_cancelled: 'Calendar cancelled',
+    note: 'Note'
+  };
+  var STRENGTH = { strong: 'Strong', medium: 'Medium', self: 'Self-reported' };
+  var cfg = null;
+  var current = '';
+
+  function $(id) { return document.getElementById(id); }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function hm(iso) { return iso ? iso.slice(11, 16) : ''; }
+  function bkkToday() { return new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10); }
+  function standalone() { return window.navigator.standalone === true || matchMedia('(display-mode: standalone)').matches; }
+
+  /* ---------- setup: key travels in the #fragment (never sent to GitHub) and is kept on this device ---------- */
+  function decodeSetup(s) {
+    var m = String(s || '').match(/[#&]s=([A-Za-z0-9_-]+)/);
+    if (!m) return null;
+    var b64 = m[1].replace(/-/g, '+').replace(/_/g, '/');
+    while (b64.length % 4) b64 += '=';
+    try {
+      var bin = atob(b64);
+      var bytes = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      var o = JSON.parse(new TextDecoder().decode(bytes));
+      if (!/^https:\/\/script\.google\.com\/.+\/exec$/.test(o.u) || !/^[a-f0-9]{32,}$/i.test(o.k)) return null;
+      return { u: o.u, k: o.k };
+    } catch (e) { return null; }
+  }
+  function save(c) { try { localStorage.setItem(STORE, JSON.stringify(c)); } catch (e) { /* private mode */ } cfg = c; }
+  function load() {
+    try { var c = JSON.parse(localStorage.getItem(STORE) || 'null'); if (c && c.u && c.k) return c; } catch (e) { /* ignore */ }
+    return null;
+  }
+
+  function init() {
+    var fromHash = decodeSetup(location.hash);
+    if (fromHash) {
+      save(fromHash);
+      if (standalone()) {
+        history.replaceState(null, '', location.pathname);
+      } else {
+        // Keep the link as is, so "Add to Home Screen" carries the setup into the app.
+        $('installHint').classList.remove('hide');
+      }
+    } else {
+      cfg = load();
+    }
+    if (!cfg) { $('setup').classList.remove('hide'); return; }
+    $('main').classList.remove('hide');
+    load_(bkkToday());
+  }
+
+  $('pasteSave').onclick = function () {
+    var c = decodeSetup($('pasteLink').value.trim());
+    if (!c) { $('setupErr').textContent = 'That link isn\'t a valid setup link. Copy it again from the sheet.'; return; }
+    save(c);
+    $('setup').classList.add('hide');
+    $('main').classList.remove('hide');
+    load_(bkkToday());
+  };
+  $('pasteLink').oninput = function () { $('setupErr').textContent = ''; };
+  $('forget').onclick = function () {
+    if (!confirm('Remove the timeline key from this device? You can set it up again from the sheet.')) return;
+    try { localStorage.removeItem(STORE); } catch (e) { /* ignore */ }
+    location.replace(location.pathname);
+  };
+
+  /* ---------- data ---------- */
+  function api(params) {
+    var q = Object.keys(params).map(function (k) { return k + '=' + encodeURIComponent(params[k]); }).join('&');
+    return fetch(cfg.u + '?' + q, { cache: 'no-store', referrerPolicy: 'no-referrer' })
+      .then(function (r) { return r.json(); })
+      .then(function (j) { if (!j.ok) throw new Error(j.error || 'Request failed'); return j; });
+  }
+  function post(body) {
+    return fetch(cfg.u, {
+      method: 'POST', body: JSON.stringify(body), cache: 'no-store', referrerPolicy: 'no-referrer',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' }   // simple request: no CORS preflight
+    }).then(function (r) { return r.json(); })
+      .then(function (j) { if (!j.ok) throw new Error(j.error || 'Request failed'); return j; });
+  }
+
+  function load_(date) {
+    current = date;
+    $('date').value = date;
+    $('list').innerHTML = '<div class="empty">Loading…</div>';
+    api({ api: 'day', date: date, k: cfg.k }).then(function (j) { render(j.day); }).catch(function (e) {
+      var msg = /Not allowed/.test(e.message) ? 'The key on this device no longer works. Remove setup below and scan the new QR code.' : e.message;
+      $('list').innerHTML = '<div class="empty">Couldn\'t load: ' + esc(msg) + '</div>';
+    });
+  }
+
+  function shiftDate(n) {
+    var d = new Date(current + 'T12:00:00+07:00');
+    d.setUTCDate(d.getUTCDate() + n);
+    load_(new Date(d.getTime() + 7 * 3600000).toISOString().slice(0, 10));
+  }
+
+  function render(d) {
+    var sh = d.shifts.map(function (s) {
+      return '<span class="chip on">Shift ' + esc(hm(s.start)) + '–' + esc(hm(s.end)) + (s.label ? ' · ' + esc(s.label) : '') + '</span>';
+    }).join('');
+    if (!d.shifts.length) sh = d.rosterKnown ? '<span class="chip">Off duty all day</span>' : '<span class="chip warn">No roster entered for this month</span>';
+    $('shifts').innerHTML = sh;
+    $('counts').innerHTML = ['strong', 'medium', 'self'].map(function (k) {
+      return '<span class="b ' + k + '">' + d.counts[k] + ' ' + STRENGTH[k].toLowerCase() + '</span>';
+    }).join(' ') + (d.hiddenFolders ? ' <span class="chip">' + d.hiddenFolders + ' case sub-folder' + (d.hiddenFolders > 1 ? 's' : '') + ' hidden</span>' : '');
+
+    var items = d.entries.map(function (e) { return { t: e.t, e: e }; })
+      .concat(d.gaps.map(function (g) { return { t: g.start, g: g }; }))
+      .sort(function (a, b) { return a.t < b.t ? -1 : a.t > b.t ? 1 : 0; });
+
+    if (!items.length) { $('list').innerHTML = '<div class="empty">Nothing recorded on this day.</div>'; }
+    else $('list').innerHTML = items.map(function (it) {
+      if (it.g) {
+        return '<div class="row gap"><div class="time">' + hm(it.g.start) + '</div><div>No record until ' + hm(it.g.end) +
+          ' <button style="margin-left:6px;font-size:13px;padding:3px 8px" data-from="' + hm(it.g.start) + '" data-to="' + hm(it.g.end) + '">Fill</button></div></div>';
+      }
+      var e = it.e;
+      var time = hm(e.t) + (e.tEnd && e.tEnd.slice(0, 10) === e.t.slice(0, 10) && hm(e.tEnd) !== hm(e.t) ? '–' + hm(e.tEnd) : '');
+      if (e.count > 1) time = hm(e.t) + '–' + hm(e.tLast);
+      var kind = (KIND[e.kind] || e.kind) + (e.count > 1 ? ' ×' + e.count : '');
+      var extra = e.from ? ' <span style="color:var(--muted)">(was ' + esc(e.from) + ')</span>' : '';
+      var sub = [];
+      if (e.caseNo && e.caseNo !== e.title) sub.push('<span class="chip">' + esc(e.caseNo) + '</span>');
+      sub.push('<span>' + esc(e.source) + '</span>');
+      sub.push('<span class="b ' + esc(e.strength) + '">' + esc(STRENGTH[e.strength] || e.strength) + '</span>');
+      if (e.duty === 'off') sub.push('<span class="b off">Off duty</span>');
+      if (e.entered) sub.push('<span>entered ' + esc(e.entered.slice(0, 16).replace('T', ' ')) + '</span>');
+      if (e.written) sub.push('<span>written ' + esc(e.written.slice(0, 16).replace('T', ' ')) + '</span>');
+      if (e.proof && /^https:\/\//.test(e.proof)) sub.push('<a href="' + esc(e.proof) + '" target="_blank" rel="noopener noreferrer">proof</a>');
+      return '<div class="row"><div class="time">' + esc(time) + '</div><div><div class="title"><span class="kind">' + esc(kind) +
+        '</span> ' + esc(e.title) + extra + '</div><div class="sub">' + sub.join('') + '</div></div></div>';
+    }).join('');
+
+    var st = d.status || {};
+    $('status').innerHTML = Object.keys(st).map(function (k) {
+      return '<div>' + (st[k].ok ? '✓ ' : '⚠ ') + esc(k) + ': ' + esc(st[k].msg) + ' · ' + esc((st[k].at || '').slice(5, 16).replace('T', ' ')) + '</div>';
+    }).join('');
+  }
+
+  $('list').addEventListener('click', function (ev) {
+    var b = ev.target.closest('button[data-from]');
+    if (!b) return;
+    $('nFrom').value = b.getAttribute('data-from'); $('nTo').value = b.getAttribute('data-to');
+    $('noteCard').scrollIntoView({ behavior: 'smooth' });
+    $('nText').focus();
+  });
+
+  $('nSave').onclick = function () {
+    var n = { action: 'note', k: cfg.k, date: current, from: $('nFrom').value, to: $('nTo').value,
+      caseNo: $('nCase').value, text: $('nText').value.trim() };
+    if (!n.from) { $('nErr').textContent = 'Enter a start time.'; return; }
+    if (!n.text) { $('nErr').textContent = 'Write what you were doing.'; return; }
+    $('nErr').textContent = ''; $('nSave').disabled = true; $('nSave').textContent = 'Saving…';
+    post(n).then(function (j) {
+      $('nFrom').value = ''; $('nTo').value = ''; $('nCase').value = ''; $('nText').value = '';
+      render(j.day);
+    }).catch(function (e) { $('nErr').textContent = e.message; })
+      .then(function () { $('nSave').disabled = false; $('nSave').textContent = 'Save note'; });
+  };
+  ['nFrom', 'nText'].forEach(function (id) { $(id).addEventListener('input', function () { $('nErr').textContent = ''; }); });
+  $('prev').onclick = function () { shiftDate(-1); };
+  $('next').onclick = function () { shiftDate(1); };
+  $('reload').onclick = function () { load_(current); };
+  $('date').onchange = function () { if ($('date').value) load_($('date').value); };
+  window.addEventListener('hashchange', function () { if (decodeSetup(location.hash)) location.reload(); });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden && cfg && current) load_(current); });
+  init();
+})();
+</script>
+</body>
+</html>
