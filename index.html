@@ -223,7 +223,7 @@
     $('shifts').innerHTML = sh;
     $('counts').innerHTML = ['strong', 'medium', 'self'].map(function (k) {
       return '<span class="b ' + k + '">' + d.counts[k] + ' ' + STRENGTH[k].toLowerCase() + '</span>';
-    }).join(' ') + (d.hiddenFolders ? ' <span class="chip">' + d.hiddenFolders + ' case sub-folder' + (d.hiddenFolders > 1 ? 's' : '') + ' hidden</span>' : '');
+    }).join(' ') + (d.hiddenFolders ? ' <span class="chip">' + d.hiddenFolders + ' automatic Inquiry Copilot item' + (d.hiddenFolders > 1 ? 's' : '') + ' hidden</span>' : '');
 
     var items = d.entries.map(function (e) { return { t: e.t, e: e }; })
       .concat(d.gaps.map(function (g) { return { t: g.start, g: g }; }))
