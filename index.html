@@ -56,6 +56,16 @@
   .err { color:var(--red); font-size:13px; min-height:18px; margin-top:6px; }
   .empty { color:var(--muted); padding:16px 0; border-top:1px solid var(--line); }
   .status { font-size:12px; color:var(--muted); margin-top:18px; }
+  .chart { margin:6px 0 12px; }
+  .chart .hrs, .chart .lane { display:grid; grid-template-columns:62px minmax(0,1fr); align-items:center; }
+  .chart .hrs .ticks { position:relative; height:14px; font-size:10px; color:var(--muted); }
+  .chart .hrs .ticks span { position:absolute; top:0; transform:translateX(-50%); }
+  .chart .lab { font-size:11px; color:var(--muted); }
+  .chart .cells { position:relative; display:grid; grid-template-columns:repeat(48, minmax(0,1fr)); height:16px; margin:3px 0;
+    background:repeating-linear-gradient(to right, transparent 0, transparent calc(100%/8 - 1px), var(--line) calc(100%/8 - 1px), var(--line) calc(100%/8)); }
+  .chart .now { position:absolute; top:-2px; bottom:-2px; width:2px; background:var(--red); }
+  .c-shift { background:var(--bluebg); } .c-files1 { background:#a8dcbf; } .c-files2 { background:#7cc49a; } .c-files3 { background:var(--green); }
+  .c-photos { background:#f0997b; } .c-calendar { background:var(--purplebg); } .c-notes { background:var(--graybg); } .c-gaps { background:#f2b24a; }
   .banner { background:var(--bluebg); color:var(--blue); border-radius:10px; padding:10px 12px; margin:6px 0 10px; font-size:14px; }
   .hide { display:none; }
   .link { background:none; border:none; padding:0; color:var(--muted); text-decoration:underline; font-size:12px; }
@@ -85,6 +95,7 @@
     </div>
     <div class="chips" id="shifts"></div>
     <div class="chips" id="counts"></div>
+    <div class="chart" id="chart"></div>
     <div id="list"><div class="empty">Loading…</div></div>
 
     <div class="card" id="noteCard">
@@ -199,6 +210,11 @@
       .then(function (j) { if (!j.ok) throw new Error(j.error || 'Request failed'); return j; });
   }
 
+  function refresh() {   // quiet reload: keeps what's on screen until the new data arrives
+    if (!cfg || !current) return;
+    api({ api: 'day', date: current, k: cfg.k }).then(function (j) { render(j.day); }).catch(function () { /* keep old view */ });
+  }
+
   function load_(date) {
     current = date;
     $('date').value = date;
@@ -216,6 +232,7 @@
   }
 
   function render(d) {
+    renderChart(d);
     var sh = d.shifts.map(function (s) {
       return '<span class="chip on">Shift ' + esc(hm(s.start)) + '–' + esc(hm(s.end)) + (s.label ? ' · ' + esc(s.label) : '') + '</span>';
     }).join('');
@@ -259,6 +276,30 @@
     }).join('');
   }
 
+  function renderChart(d) {
+    var st = d.strip;
+    if (!st) { $('chart').innerHTML = ''; return; }
+    var today = d.date === bkkToday();
+    var nowPct = null;
+    if (today) {
+      var b = new Date(Date.now() + 7 * 3600000);
+      nowPct = (b.getUTCHours() * 60 + b.getUTCMinutes()) / 1440 * 100;
+    }
+    var nowBar = nowPct === null ? '' : '<div class="now" style="left:' + nowPct.toFixed(2) + '%"></div>';
+    var h = '<div class="hrs"><div></div><div class="ticks">';
+    for (var hr = 0; hr < 24; hr += 3) h += '<span style="left:' + (hr / 24 * 100) + '%">' + (hr < 10 ? '0' : '') + hr + '</span>';
+    h += '</div></div>';
+    st.rows.forEach(function (row) {
+      var cells = row.cells.map(function (v) {
+        if (!v) return '<div></div>';
+        var cls = row.key === 'files' ? 'c-files' + v : 'c-' + row.key;
+        return '<div class="' + cls + '"></div>';
+      }).join('');
+      h += '<div class="lane"><div class="lab">' + esc(row.label) + '</div><div class="cells">' + cells + nowBar + '</div></div>';
+    });
+    $('chart').innerHTML = h;
+  }
+
   $('list').addEventListener('click', function (ev) {
     var b = ev.target.closest('button[data-from]');
     if (!b) return;
@@ -285,7 +326,8 @@
   $('reload').onclick = function () { load_(current); };
   $('date').onchange = function () { if ($('date').value) load_($('date').value); };
   window.addEventListener('hashchange', function () { if (decodeSetup(location.hash)) location.reload(); });
-  document.addEventListener('visibilitychange', function () { if (!document.hidden && cfg && current) load_(current); });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) refresh(); });
+  setInterval(function () { if (!document.hidden && current === bkkToday()) refresh(); }, 5 * 60 * 1000);
   init();
 })();
 </script>
