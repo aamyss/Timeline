@@ -65,7 +65,7 @@
     background:repeating-linear-gradient(to right, transparent 0, transparent calc(100%/8 - 1px), var(--line) calc(100%/8 - 1px), var(--line) calc(100%/8)); }
   .chart .now { position:absolute; top:-2px; bottom:-2px; width:2px; background:var(--red); }
   .c-shift { background:var(--bluebg); } .c-files1 { background:#a8dcbf; } .c-files2 { background:#7cc49a; } .c-files3 { background:var(--green); }
-  .c-photos { background:#f0997b; } .c-calendar { background:var(--purplebg); } .c-notes { background:var(--graybg); } .c-gaps { background:#f2b24a; }
+  .c-photos { background:#f0997b; } .c-place1 { background:#9fe1cb; } .c-place2 { background:#1d9e75; } .c-calendar { background:var(--purplebg); } .c-notes { background:var(--graybg); } .c-gaps { background:#f2b24a; }
   .banner { background:var(--bluebg); color:var(--blue); border-radius:10px; padding:10px 12px; margin:6px 0 10px; font-size:14px; }
   .hide { display:none; }
   .link { background:none; border:none; padding:0; color:var(--muted); text-decoration:underline; font-size:12px; }
@@ -125,7 +125,7 @@
     folder_created: 'New folder', folder_renamed: 'Folder renamed', folder_moved: 'Folder moved',
     folder_deleted: 'Folder deleted', folder_added: 'Folder added', folder_restored: 'Folder restored',
     calendar_event: 'Calendar', calendar_changed: 'Calendar changed', calendar_cancelled: 'Calendar cancelled',
-    note: 'Note', photo_taken: 'Photo taken'
+    note: 'Note', photo_taken: 'Photo taken', location_checkin: 'Location', place_arrived: 'Arrived', place_left: 'Left'
   };
   var STRENGTH = { strong: 'Strong', medium: 'Medium', self: 'Self-reported' };
   var cfg = null;
@@ -265,7 +265,7 @@
       if (e.entered) sub.push('<span>entered ' + esc(e.entered.slice(0, 16).replace('T', ' ')) + '</span>');
       if (e.written) sub.push('<span>written ' + esc(e.written.slice(0, 16).replace('T', ' ')) + '</span>');
       if (e.taken) sub.push('<span>taken ' + esc(e.taken.slice(0, 16).replace('T', ' ')) + '</span>');
-      if (e.proof && /^https:\/\//.test(e.proof)) sub.push('<a href="' + esc(e.proof) + '" target="_blank" rel="noopener noreferrer">' + (e.kind === 'photo_taken' ? 'map' : 'proof') + '</a>');
+      if (e.proof && /^https:\/\//.test(e.proof)) sub.push('<a href="' + esc(e.proof) + '" target="_blank" rel="noopener noreferrer">' + (/^photo_taken|^location_|^place_/.test(e.kind) ? 'map' : 'proof') + '</a>');
       return '<div class="row"><div class="time">' + esc(time) + '</div><div><div class="title"><span class="kind">' + esc(kind) +
         '</span> ' + esc(e.title) + extra + '</div><div class="sub">' + sub.join('') + '</div></div></div>';
     }).join('');
@@ -292,7 +292,7 @@
     st.rows.forEach(function (row) {
       var cells = row.cells.map(function (v) {
         if (!v) return '<div></div>';
-        var cls = row.key === 'files' ? 'c-files' + v : 'c-' + row.key;
+        var cls = row.key === 'files' || row.key === 'place' ? 'c-' + row.key + v : 'c-' + row.key;
         return '<div class="' + cls + '"></div>';
       }).join('');
       h += '<div class="lane"><div class="lab">' + esc(row.label) + '</div><div class="cells">' + cells + nowBar + '</div></div>';
