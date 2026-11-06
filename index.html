@@ -114,7 +114,7 @@
     folder_created: 'New folder', folder_renamed: 'Folder renamed', folder_moved: 'Folder moved',
     folder_deleted: 'Folder deleted', folder_added: 'Folder added', folder_restored: 'Folder restored',
     calendar_event: 'Calendar', calendar_changed: 'Calendar changed', calendar_cancelled: 'Calendar cancelled',
-    note: 'Note'
+    note: 'Note', photo_taken: 'Photo taken'
   };
   var STRENGTH = { strong: 'Strong', medium: 'Medium', self: 'Self-reported' };
   var cfg = null;
@@ -247,7 +247,7 @@
       if (e.duty === 'off') sub.push('<span class="b off">Off duty</span>');
       if (e.entered) sub.push('<span>entered ' + esc(e.entered.slice(0, 16).replace('T', ' ')) + '</span>');
       if (e.written) sub.push('<span>written ' + esc(e.written.slice(0, 16).replace('T', ' ')) + '</span>');
-      if (e.proof && /^https:\/\//.test(e.proof)) sub.push('<a href="' + esc(e.proof) + '" target="_blank" rel="noopener noreferrer">proof</a>');
+      if (e.proof && /^https:\/\//.test(e.proof)) sub.push('<a href="' + esc(e.proof) + '" target="_blank" rel="noopener noreferrer">' + (e.kind === 'photo_taken' ? 'map' : 'proof') + '</a>');
       return '<div class="row"><div class="time">' + esc(time) + '</div><div><div class="title"><span class="kind">' + esc(kind) +
         '</span> ' + esc(e.title) + extra + '</div><div class="sub">' + sub.join('') + '</div></div></div>';
     }).join('');
