@@ -238,7 +238,7 @@
       var e = it.e;
       var time = hm(e.t) + (e.tEnd && e.tEnd.slice(0, 10) === e.t.slice(0, 10) && hm(e.tEnd) !== hm(e.t) ? '–' + hm(e.tEnd) : '');
       if (e.count > 1) time = hm(e.t) + '–' + hm(e.tLast);
-      var kind = (KIND[e.kind] || e.kind) + (e.count > 1 ? ' ×' + e.count : '');
+      var kind = (e.kind === 'file_created' && e.isPhoto ? 'Photo added' : (KIND[e.kind] || e.kind)) + (e.count > 1 ? ' ×' + e.count : '');
       var extra = e.from ? ' <span style="color:var(--muted)">(was ' + esc(e.from) + ')</span>' : '';
       var sub = [];
       if (e.caseNo && e.caseNo !== e.title) sub.push('<span class="chip">' + esc(e.caseNo) + '</span>');
@@ -247,6 +247,7 @@
       if (e.duty === 'off') sub.push('<span class="b off">Off duty</span>');
       if (e.entered) sub.push('<span>entered ' + esc(e.entered.slice(0, 16).replace('T', ' ')) + '</span>');
       if (e.written) sub.push('<span>written ' + esc(e.written.slice(0, 16).replace('T', ' ')) + '</span>');
+      if (e.taken) sub.push('<span>taken ' + esc(e.taken.slice(0, 16).replace('T', ' ')) + '</span>');
       if (e.proof && /^https:\/\//.test(e.proof)) sub.push('<a href="' + esc(e.proof) + '" target="_blank" rel="noopener noreferrer">' + (e.kind === 'photo_taken' ? 'map' : 'proof') + '</a>');
       return '<div class="row"><div class="time">' + esc(time) + '</div><div><div class="title"><span class="kind">' + esc(kind) +
         '</span> ' + esc(e.title) + extra + '</div><div class="sub">' + sub.join('') + '</div></div></div>';
