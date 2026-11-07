@@ -26,6 +26,12 @@ function collectEverything_(deadline, report) {
     setStatus_('calendar', false, e.message);
     report.push('Calendar error: ' + e.message);
   }
+  try {
+    var added = syncCasesTab_();
+    if (added) report.push(added + ' case' + (added > 1 ? 's' : '') + ' added to the Cases tab');
+  } catch (e) {
+    report.push('Cases tab error: ' + e.message);
+  }
 }
 
 function collectCalendars_() {

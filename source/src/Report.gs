@@ -24,6 +24,25 @@ function esc_(s) {
   });
 }
 
+/** The v9 summary card: same lines as the app (Core.summaryLines), plus notices due within 7 days. */
+function summaryCardHtml_(day) {
+  var lines = day.summaryLines || [];
+  var h = ['<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;background:#f6f6f4;border-radius:8px;margin:0 0 8px;font-size:13px">'];
+  lines.forEach(function (l, i) {
+    var top = i === 0 ? '10px' : '3px', bottom = i === lines.length - 1 ? '10px' : '3px';
+    h.push('<tr><td style="padding:' + top + ' 6px ' + bottom + ' 10px;color:#666;white-space:nowrap;vertical-align:top;width:110px">' + esc_(l.label) + '</td>' +
+      '<td style="padding:' + top + ' 10px ' + bottom + ' 6px;color:' + (l.warn ? '#8a5300' : '#1f1f1f') + (l.key === 'shift' ? ';font-weight:bold' : '') + '">' + esc_(l.text) + '</td></tr>');
+  });
+  var urgent = (day.summary && day.summary.notices && day.summary.notices.urgent) || [];
+  urgent.slice(0, 8).forEach(function (n) {
+    h.push('<tr><td></td><td style="padding:0 6px 4px;font-size:12px;color:' + (n.overdue ? '#a32d2d' : '#8a5300') + '">• ' +
+      esc_(n.label) + ': ' + esc_(n.text) + '</td></tr>');
+  });
+  if (urgent.length > 8) h.push('<tr><td></td><td style="padding:0 6px 8px;font-size:12px;color:#888">+ ' + (urgent.length - 8) + ' more in the app</td></tr>');
+  h.push('</table>');
+  return h.join('');
+}
+
 /** HTML for one day. seal: {rows, first, last, hash} for the footer. */
 function dayReportHtml_(day, seal) {
   var strip = Core.dayStrip(day, 30);
@@ -36,12 +55,9 @@ function dayReportHtml_(day, seal) {
 
   h.push('<div style="' + font + 'color:#1f1f1f;max-width:680px">');
   h.push('<div style="font-size:18px;font-weight:bold;margin:0 0 4px">Work timeline · ' + esc_(title) + '</div>');
-  var shiftTxt = day.shifts.length
-    ? day.shifts.map(function (s) { return s.start.slice(11, 16) + '–' + s.end.slice(11, 16) + (s.label ? ' ' + s.label : ''); }).join(', ')
-    : (day.rosterKnown ? 'Off duty' : 'No roster entered');
-  h.push('<div style="font-size:13px;color:#555;margin:0 0 12px">Shift: ' + esc_(shiftTxt) +
-    ' · ' + day.counts.strong + ' strong · ' + day.counts.medium + ' medium · ' + day.counts.self + ' self-reported' +
-    (day.gaps.length ? ' · <span style="color:#8a5300">' + day.gaps.length + ' gap' + (day.gaps.length > 1 ? 's' : '') + '</span>' : '') + '</div>');
+  h.push(summaryCardHtml_(day));
+  h.push('<div style="font-size:12px;color:#777;margin:0 0 10px">Evidence: ' + day.counts.strong + ' strong · ' + day.counts.medium + ' medium · ' +
+    day.counts.self + ' self-reported</div>');
 
   // Hour scale + strips.
   h.push('<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;table-layout:fixed">');

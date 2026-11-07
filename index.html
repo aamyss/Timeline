@@ -67,6 +67,19 @@
   .c-shift { background:var(--bluebg); } .c-files1 { background:#a8dcbf; } .c-files2 { background:#7cc49a; } .c-files3 { background:var(--green); }
   .c-photos { background:#f0997b; } .c-place1 { background:#9fe1cb; } .c-place2 { background:#1d9e75; } .c-calendar { background:var(--purplebg); } .c-notes { background:var(--graybg); } .c-gaps { background:#f2b24a; }
   .banner { background:var(--bluebg); color:var(--blue); border-radius:10px; padding:10px 12px; margin:6px 0 10px; font-size:14px; }
+  .sum { background:var(--card); border-radius:12px; padding:10px 12px; margin:2px 0 8px; font-size:14px; }
+  .sum .l { display:grid; grid-template-columns:96px minmax(0,1fr); gap:8px; padding:2px 0; }
+  .sum .k { color:var(--muted); font-size:13px; }
+  .sum .v { word-break:break-word; }
+  .sum .w { color:var(--amber); }
+  .sum .shift .v { font-weight:600; }
+  .sum ul { margin:2px 0 4px 104px; padding:0; list-style:none; font-size:13px; }
+  .sum li { padding:1px 0; }
+  .sum li.over { color:var(--red); } .sum li.soon { color:var(--amber); }
+  .sum details { margin-top:6px; font-size:13px; }
+  .sum summary { color:var(--muted); cursor:pointer; }
+  .sum details li { color:var(--fg); }
+  .sum details ul { margin-left:0; }
   .hide { display:none; }
   .link { background:none; border:none; padding:0; color:var(--muted); text-decoration:underline; font-size:12px; }
 </style>
@@ -93,6 +106,7 @@
       <button id="next" aria-label="Next day">›</button>
       <button id="reload" aria-label="Refresh">↻</button>
     </div>
+    <div class="sum hide" id="sum"></div>
     <div class="chips" id="shifts"></div>
     <div class="chips" id="counts"></div>
     <div class="chart" id="chart"></div>
@@ -237,7 +251,8 @@
       return '<span class="chip on">Shift ' + esc(hm(s.start)) + '–' + esc(hm(s.end)) + (s.label ? ' · ' + esc(s.label) : '') + '</span>';
     }).join('');
     if (!d.shifts.length) sh = d.rosterKnown ? '<span class="chip">Off duty all day</span>' : '<span class="chip warn">No roster entered for this month</span>';
-    $('shifts').innerHTML = sh;
+    $('shifts').innerHTML = d.summaryLines ? '' : sh;   // the summary card shows the shift (older script: chips)
+    renderSummary(d);
     $('counts').innerHTML = ['strong', 'medium', 'self'].map(function (k) {
       return '<span class="b ' + k + '">' + d.counts[k] + ' ' + STRENGTH[k].toLowerCase() + '</span>';
     }).join(' ') + (d.hiddenFolders ? ' <span class="chip">' + d.hiddenFolders + ' automatic Inquiry Copilot item' + (d.hiddenFolders > 1 ? 's' : '') + ' hidden</span>' : '');
@@ -274,6 +289,25 @@
     $('status').innerHTML = Object.keys(st).map(function (k) {
       return '<div>' + (st[k].ok ? '✓ ' : '⚠ ') + esc(k) + ': ' + esc(st[k].msg) + ' · ' + esc((st[k].at || '').slice(5, 16).replace('T', ' ')) + '</div>';
     }).join('');
+  }
+
+  function renderSummary(d) {
+    var box = $('sum');
+    if (!d.summaryLines) { box.classList.add('hide'); return; }
+    box.classList.remove('hide');
+    var h = d.summaryLines.map(function (l) {
+      return '<div class="l ' + esc(l.key) + '"><div class="k">' + esc(l.label) + '</div><div class="v' + (l.warn ? ' w' : '') + '">' + esc(l.text) + '</div></div>' +
+        (l.key === 'notices' ? '<ul>' + d.summary.notices.urgent.map(function (n) {
+          return '<li class="' + (n.overdue ? 'over' : 'soon') + '">' + esc(n.label) + ': ' + esc(n.text) + '</li>';
+        }).join('') + '</ul>' : '');
+    }).join('');
+    var all = d.summary && d.summary.notices ? d.summary.notices.all : [];
+    if (all.length) {
+      h += '<details><summary>Open cases and next progress notice (' + all.length + ')</summary><ul>' + all.map(function (n) {
+        return '<li>' + esc(n.label) + ' · reported ' + esc(n.start) + (n.done.length ? ' · sent ' + esc(n.done.join(', ')) : '') + '<br><span class="k">' + esc(n.text) + '</span></li>';
+      }).join('') + '</ul></details>';
+    }
+    box.innerHTML = h;
   }
 
   function renderChart(d) {

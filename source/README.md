@@ -26,7 +26,7 @@ No Microsoft setup is needed.
 3. **Project Settings** (gear) → tick **Show "appsscript.json" manifest file**.
 4. Back in **Editor**, replace the contents of `appsscript.json` with the one from the `src` folder.
 5. Add the other files with **+ → Script** (or **+ → HTML** for Index). Use exactly these names; Apps Script adds `.gs`/`.html` itself:
-   `Core`, `Config`, `Log`, `Collect`, `WebApp`, `Report`, `Menu` and `Index` (HTML). Paste each file's contents.
+   `Core`, `Config`, `Log`, `Collect`, `WebApp`, `Report`, `Menu`, `Line` and `Index` (HTML). Paste each file's contents.
 6. `Code.gs` is the empty file Google creates in every new project (it's not in this zip). Delete it.
 7. Save, choose `setup` in the function dropdown, and click **Run**. Approve the permissions. Google will warn "Google hasn't verified this app". That's normal for your own script: **Advanced → Go to Work timeline**.
 8. Reload the sheet. A **Work timeline** menu appears.
@@ -78,7 +78,38 @@ End earlier than start means an overnight shift. Until a month's roster is enter
 - `SEAL_RECIPIENTS`: empty means your own Gmail.
 - Leave `PC_TOKEN` and `VIEW_KEY` as they are. Changing one locks out the PC or the day-view link until you redo step 2.4 and step 3.
 
-The **Cases** tab attaches a real case number to a case folder name, e.g. `2026-11-05_1510-ลักสายไฟ_โรงงาน_บริษัทตัวอย่าง` → `456/2569`.
+- `NOTICE_WORDS`: default `แจ้งความคืบหน้า,คืบหน้า`. A file in a case folder whose name contains one of these counts as a progress notice sent on the day it first appeared.
+- `PUBLIC_STATS`: `off` (default) or `on`. Set from **LINE page setup**.
+
+The **Cases** tab fills itself every hour: one row per Inquiry Copilot case folder, each with a `line_code`.
+- `case_no`: type the real case number, e.g. `2026-11-05_1510-ลักสายไฟ_โรงงาน_บริษัทตัวอย่าง` → `456/2569`. The app and the LINE page then show the number instead of the folder name.
+- `closed`: the date the file went to the prosecutor or the case ended (e.g. `2026-12-01`). The last progress notice is due that day.
+- `line_code`: give it only to the complainant of that case (for example, write it on the progress-notice letter).
+
+## Summary card and progress notices (v9)
+The top of the app and of the nightly email shows a summary of the day: shift, on-duty coverage (shift time minus gaps), work outside shifts (each record counts as 15 minutes; records close together join up; notes and place visits count their full span), cases, documents created/edited/deleted (not photos or Inquiry Copilot's own files), photos (and how many carry a location), places and calendar items.
+
+Progress notices (แจ้งความคืบหน้า, คำสั่ง ตร.ที่ 419/2556 บทที่ 2 ข้อ 1.2) are worked out per Inquiry Copilot case:
+- 1st: 30 days after the complaint (the date at the start of the case folder name).
+- 2nd: 2 months after the 1st was actually sent.
+- 3rd: when the file goes to the prosecutor (the `closed` date in the Cases tab).
+- Extra notices on a warrant or arrest aren't tracked.
+
+A notice counts as sent when a file whose name contains a `NOTICE_WORDS` word appears in the case folder. Cases that began before `BACKFILL_FROM` aren't judged. The card lists notices overdue or due within 7 days; the app also lists every open case.
+
+## LINE page (v10)
+`line/index.html` in the GitHub repo is a LIFF page for the work LINE OA, with two tabs:
+- **ผลงาน**: totals only (on-duty hours, work outside shifts, cases, documents) for this month, last month and since the roster began. Off until you switch it on (ask your ผกก. first).
+- **คดีของฉัน**: a complainant enters the case's `line_code` once. They then see the dates you worked on the case, the progress-notice dates and the next due date. No file names, names of people or times of day. Their LINE sign-in is checked with LINE's server; only a one-way hash of their LINE ID is kept (Links tab). Five wrong codes lock them out for an hour.
+
+It sends no LINE messages, so it uses none of the free plan's 300 pushes.
+
+Setup:
+1. [LINE Developers console](https://developers.line.biz/console/) → the **same provider** as the work OA → **Create a new channel → LINE Login**. App type: **Web app**. Publish it (status **Published**), or only you can sign in.
+2. Sheet menu **Work timeline → LINE page setup**: copy the **Endpoint URL**.
+3. In the LINE Login channel → **LIFF → Add**: size **Full**, Endpoint URL from step 2, scope **openid** only, Add friend option (Bot link) **On (Normal)**, Scan QR off. Add.
+4. Back in **LINE page setup**: paste the **LIFF ID** (from the LIFF tab) and the **Channel ID** (Basic settings tab). Save. Leave "Show work totals publicly" unticked until your ผกก. agrees.
+5. LINE Official Account Manager → **Rich menus**: two buttons, action **Link**, using the two links the dialog now shows.
 
 ---
 
@@ -102,11 +133,13 @@ After updating the script, run **Work timeline → Set up** once more. It adds t
 - **Collect calendars now**: run the hourly calendar check immediately.
 - **Seal yesterday now**: send yesterday's seal if the nightly one didn't run.
 - **Verify log**: recompute every hash and compare with the Seals tab.
+- **Update Cases tab**: add new case folders now (it also runs every hour).
+- **LINE page setup**: LIFF ID, LINE Login channel ID, public totals on/off.
 
 ## Files
 | File | What it does |
 |---|---|
-| `src/Core.gs` | Pure logic: case numbers, calendar changes, PC reports, duty, gaps, hashing |
+| `src/Core.gs` | Pure logic: case numbers, calendar changes, PC reports, duty, gaps, summary card, progress notices, hashing |
 | `src/Config.gs` | Settings, `setup`, triggers, secrets |
 | `src/Log.gs` | Append-only log, hash chain, nightly seal, verify |
 | `src/Collect.gs` | Hourly Google Calendar sync |
@@ -114,7 +147,9 @@ After updating the script, run **Work timeline → Set up** once more. It adds t
 | `src/Index.html` | Fallback day view inside Google (link with `?k=` key) |
 | `src/Report.gs` | Graphical day timeline in the nightly email |
 | `src/Menu.gs` | Sheet menu |
+| `src/Line.gs` | LINE page API: public totals, case codes, LINE sign-in check |
+| `../line/index.html` | The LINE page (LIFF), served by GitHub Pages |
 | `pc/install.cmd` | Installs the PC reporter |
 | `iPhone-setup.md` | Step-by-step iPhone Shortcuts setup |
 | `pc/reporter.ps1` | The reporter itself (read-only scan, runs hidden via `run-reporter.vbs`) |
-| `test/` | Offline tests: `node test/run-tests.js` (Apps Script logic), `node test/pc-e2e.js` (needs PowerShell `pwsh`), `node test/app-e2e.js` (iPhone app in a browser; needs Playwright, set `PLAYWRIGHT`/`CHROME` if not on the default path), `node test/email-preview.js` (renders the nightly email to /tmp/email-phone.png) |
+| `test/` | Offline tests: `node test/run-tests.js` (Apps Script logic), `node test/pc-e2e.js` (needs PowerShell `pwsh`), `node test/app-e2e.js` (iPhone app and LINE page in a browser; needs Playwright, set `PLAYWRIGHT`/`CHROME` if not on the default path), `node test/email-preview.js` (renders the nightly email to /tmp/email-phone.png) |

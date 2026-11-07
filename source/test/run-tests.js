@@ -247,6 +247,87 @@ test('calendar: new, unchanged, changed, cancelled, before backfill', () => {
   assert.strictEqual(Core.diffCalendarEvent(old, 'Work', 'c', idx, o).length, 0);
 });
 
+
+test('daySummary: coverage of the shift, work outside it, documents, photos, places', () => {
+  const at = (h) => '2026-11-04T' + h + ':00+07:00';
+  const s = Core.daySummary({
+    date: '2026-11-04', rosterKnown: true, now: new Date(at('23:59')),
+    shifts: [{ start: at('08:00'), end: at('16:00'), label: 'x' }],
+    gaps: [{ start: at('09:00'), end: at('10:40') }],
+    entries: [
+      { kind: 'file_created', t: at('08:30'), path: 'P/แฟ้มคดี/2026-11-04_0830-ลักทรัพย์_ก/บันทึก.docx', caseNo: 'A' },
+      { kind: 'file_modified', t: at('08:45'), path: 'P/แฟ้มคดี/2026-11-04_0830-ลักทรัพย์_ก/บันทึก.docx', caseNo: 'A' },
+      { kind: 'file_modified', t: at('11:00'), path: 'P/แฟ้มคดี/2026-11-04_0830-ลักทรัพย์_ก/__res__/session.json', caseNo: 'A' },
+      { kind: 'file_modified', t: at('19:00'), path: 'P/x/คำให้การ.docx', caseNo: 'B' },
+      { kind: 'file_modified', t: at('19:10'), path: 'P/x/คำให้การ.docx', caseNo: 'B' },
+      { kind: 'note', t: at('21:00'), tEnd: at('22:00'), caseNo: '' },
+      { kind: 'photo_taken', t: at('12:00'), proof: 'https://maps.google.com/?q=1,2' },
+      { kind: 'photo_taken', t: at('12:05'), proof: '' },
+      { kind: 'calendar_event', t: at('13:00'), title: 'สอบปากคำ', caseNo: '' },
+      { kind: 'calendar_event', t: at('00:00'), title: 'เวรฝากขัง', plan: true }
+    ],
+    visits: [{ place: 'ศาลนนทบุรี', start: at('14:00'), end: at('15:00') }]
+  });
+  assert.strictEqual(s.shiftMin, 480);
+  assert.strictEqual(s.coveredMin, 380, '8h minus a 100-minute gap');
+  assert.strictEqual(s.outsideMin, 25 + 60, '19:00–19:25 (two edits, 15 min each, joined) + the 1-hour note');
+  assert.strictEqual(s.outsideSessions, 2);
+  assert.deepStrictEqual([s.created, s.edited], [1, 1], 'new file not double-counted; Inquiry Copilot session file ignored');
+  assert.deepStrictEqual([s.photosTaken, s.photosGps], [2, 1]);
+  assert.deepStrictEqual(s.cases.sort(), ['A', 'B']);
+  assert.deepStrictEqual(s.calendar, ['สอบปากคำ'], 'all-day plan left out');
+  const lines = Core.summaryLines(s, { shifts: [{ start: at('08:00'), end: at('16:00'), label: '' }], rosterKnown: true, notices: { overdue: 1, soon: 0 } });
+  const t = Object.fromEntries(lines.map(l => [l.key, l.text]));
+  assert.strictEqual(t.onduty, '6h 20m of 8h · 1 gap (1h 40m)');
+  assert.strictEqual(t.outside, 'about 1h 25m in 2 sessions');
+  assert.ok(/1 overdue/.test(t.notices));
+});
+
+test('daySummary: shift still running shows "so far"; a night shift ends at 24:00', () => {
+  const s = Core.daySummary({ date: '2026-11-04', rosterKnown: true, now: new Date('2026-11-04T18:00:00+07:00'),
+    shifts: [{ start: '2026-11-04T16:00:00+07:00', end: '2026-11-05T00:00:00+07:00' }], gaps: [], entries: [], visits: [] });
+  assert.deepStrictEqual([s.elapsedMin, s.shiftMin, s.shiftDone], [120, 480, false]);
+  const l = Core.summaryLines(s, { shifts: [{ start: '2026-11-04T16:00:00+07:00', end: '2026-11-05T00:00:00+07:00', label: '' }], rosterKnown: true });
+  assert.strictEqual(l[0].text, '16:00–24:00');
+  assert.strictEqual(l[1].text, '2h of 2h so far (shift 8h) · no gaps');
+});
+
+test('progress notices: 30 days, then 2 months after the first, final when the file goes to the prosecutor', () => {
+  assert.deepStrictEqual(Core.caseFolderInfo('2026-11-05_0939-จราจร_นายตัวอย่าง'), { start: '2026-11-05', type: 'จราจร' });
+  assert.strictEqual(Core.caseFolderInfo('77-2569 ลักทรัพย์'), null);
+  let st = Core.noticeStatus('2026-11-05', [], '2026-11-30');
+  assert.deepStrictEqual([st.next.n, st.next.due, st.daysLeft, st.overdue], [1, '2026-12-05', 5, false]);
+  st = Core.noticeStatus('2026-11-05', [], '2026-12-07');
+  assert.ok(st.overdue);
+  st = Core.noticeStatus('2026-11-05', ['2026-12-03'], '2026-12-07');
+  assert.deepStrictEqual([st.next.n, st.next.due], [2, '2027-02-03']);
+  st = Core.noticeStatus('2026-11-05', ['2026-12-03', '2027-02-01'], '2027-02-07');
+  assert.deepStrictEqual([st.next.n, st.next.due, st.daysLeft], [3, '', null]);
+  st = Core.noticeStatus('2026-11-05', ['2026-12-03'], '2027-01-10', '2027-01-08');
+  assert.deepStrictEqual([st.next.n, st.next.due, st.next.final, st.overdue], [2, '2027-01-08', true, true]);
+  st = Core.noticeStatus('2026-11-05', ['2026-12-03', '2027-01-09'], '2027-01-10', '2027-01-08');
+  assert.strictEqual(st.next, null, 'final notice sent');
+});
+
+test('collectCases: work dates, notice letters by file name, deleted folders', () => {
+  const F = 'แฟ้มคดี';
+  const row = (kind, t, path, extra) => Object.assign({ kind, event_time: t, case_no: '', detail: JSON.stringify({ path }) }, extra || {});
+  const c = Core.collectCases([
+    row('folder_created', '2026-11-05T09:39:00+07:00', 'IC/p/' + F + '/2026-11-05_0939-จราจร_ก'),
+    row('file_modified', '2026-11-06T10:00:00+07:00', 'IC/p/' + F + '/2026-11-05_0939-จราจร_ก/__res__/session.json'),
+    row('file_created', '2026-12-03T10:00:00+07:00', 'IC/p/' + F + '/2026-11-05_0939-จราจร_ก/หนังสือแจ้งความคืบหน้า ครั้งที่ 1.docx'),
+    row('file_modified', '2026-12-04T10:00:00+07:00', 'IC/p/' + F + '/2026-11-05_0939-จราจร_ก/หนังสือแจ้งความคืบหน้า ครั้งที่ 1.docx'),
+    { kind: 'note', event_time: '2026-12-10T09:00:00+07:00', case_no: '12/2569', detail: '{}' },
+    { kind: 'calendar_event', event_time: '2026-12-20T09:00:00+07:00', case_no: '12/2569', detail: '{}' },
+    row('folder_created', '2026-11-06T09:00:00+07:00', 'IC/p/' + F + '/2026-11-06_0900-ฉ้อโกง_ข'),
+    row('folder_deleted', '2026-11-06T09:30:00+07:00', 'IC/p/' + F + '/2026-11-06_0900-ฉ้อโกง_ข')
+  ], [F], ['แจ้งความคืบหน้า'], { '12/2569': '2026-11-05_0939-จราจร_ก' });
+  const a = c['2026-11-05_0939-จราจร_ก'];
+  assert.deepStrictEqual(Object.keys(a.workDates), ['2026-11-05', '2026-11-06', '2026-12-03', '2026-12-04', '2026-12-10'], 'note counts, calendar plan does not');
+  assert.deepStrictEqual(a.notices, ['2026-12-03'], 'one letter, edits not counted again');
+  assert.ok(c['2026-11-06_0900-ฉ้อโกง_ข'].deleted);
+});
+
 /* ===================== Whole script on fakes ===================== */
 console.log('Script (fakes)');
 
@@ -403,6 +484,39 @@ test('iPhone: duty check and check-ins (hourly kept only on duty; arrived/left a
   assert.ok(/Log OK/.test(run('verifyLog()')));
 });
 
+
+test('v9: Cases tab fills itself with Inquiry Copilot cases and LINE codes', () => {
+  const post = (obj) => JSON.parse(run('doPost(' + JSON.stringify({ postData: { contents: JSON.stringify(obj) } }) + ')').text);
+  const now = new Date().toISOString().slice(0, 19) + 'Z';
+  const base = 'p/แฟ้มคดี/2026-10-20_1015-ลักทรัพย์_นายตัวอย่าง';
+  post({ token: W.props.PC_TOKEN, device: 'PC', deviceNow: now, events: [
+    { kind: 'folder_created', root: 'Inquiry Copilot', path: base, time: '2026-10-20T03:15:00Z' },
+    { kind: 'file_created', root: 'Inquiry Copilot', path: base + '/บันทึกคำให้การ.docx', time: '2026-11-04T03:00:00Z', sha256: 'c1' },
+    { kind: 'file_created', root: 'Inquiry Copilot', path: base + '/แจ้งความคืบหน้า ครั้งที่ 1.docx', time: '2026-11-04T04:00:00Z', sha256: 'c2' }] });
+  const out = run('collectAll()');
+  assert.ok(/1 case added/.test(out), out);
+  const cases = run('readCases_()');
+  const c = cases.find(x => x.folder === '2026-10-20_1015-ลักทรัพย์_นายตัวอย่าง');
+  assert.ok(/^[A-Z2-9]{4}-[A-Z2-9]{4}$/.test(c.code), c.code);
+  assert.ok(!/[01OIL]/.test(c.code));
+  assert.ok(!/case added/.test(run('collectAll()')), 'not added twice');
+  W.ss.getSheetByName('Cases').getRange(c.row, 2).setValue('345/2569');
+});
+
+test('v9: day data carries the summary card and progress notices', () => {
+  const d = run("getDay('2026-11-04', '" + W.props.VIEW_KEY + "')");
+  assert.ok(d.summary && d.summaryLines.length >= 3);
+  assert.strictEqual(d.summaryLines[0].key, 'shift');
+  assert.ok(d.summaryLines.some(l => l.key === 'onduty'));
+  const all = d.summary.notices.all;
+  const n = all.find(x => x.label === '345/2569');
+  assert.ok(n, 'case labelled by its number from the Cases tab');
+  assert.deepStrictEqual([n.n, n.due], [2, '2027-01-04'], 'first notice found by file name on 4 Nov; second due 2 months later');
+  const d2 = run("dayData_('2026-11-03')");
+  const n2 = d2.summary.notices.all.find(x => x.label === '345/2569');
+  assert.deepStrictEqual([n2.n, n2.due, n2.daysLeft], [1, '2026-11-19', 16], 'as of 3 Nov the first notice was still pending');
+});
+
 test('seal emails the day CSV with the chain hash, once per day', () => {
   const today = run('Core.toBkkIso(new Date()).slice(0,10)');
   const subj = run("sealDay('" + today + "')");
@@ -411,9 +525,61 @@ test('seal emails the day CSV with the chain hash, once per day', () => {
   assert.strictEqual(W.sent[0].to, 'me@example.com', 'defaults to your own address');
   assert.ok(W.sent[0].opts.attachments[0].data.indexOf('row_hash') > 0);
   assert.ok(/Work timeline ·/.test(W.sent[0].opts.htmlBody) && /<table/.test(W.sent[0].opts.htmlBody), 'graphical timeline in the email');
+  assert.ok(/>Shift</.test(W.sent[0].opts.htmlBody), 'summary card in the email');
   assert.ok(W.sent[0].opts.htmlBody.indexOf(W.props.VIEW_KEY) < 0, 'no key in the email');
   assert.ok(/Already sealed/.test(run("sealDay('" + today + "')")));
   assert.strictEqual(W.sent.length, 1);
+});
+
+
+test('v10 LINE: config and totals are public but totals stay off until switched on', () => {
+  const get = (q) => JSON.parse(run('doGet(' + JSON.stringify({ parameter: q }) + ')').text);
+  assert.deepStrictEqual(get({ api: 'line_config' }), { ok: true, liffId: '', publicStats: false, casesOn: false });
+  assert.deepStrictEqual(get({ api: 'stats' }), { ok: true, off: true });
+  run("saveLineSetup({liffId:'2001234567-AbCdEfGh', channelId:'2001234567', publicStats:true})");
+  assert.throws(() => run("saveLineSetup({liffId:'nope'})"), /LIFF ID/);
+  const st = get({ api: 'stats' });
+  assert.strictEqual(st.ok, true);
+  const all = st.periods.find(p => p.key === 'all');
+  assert.ok(all.onDutyHours > 0 && all.documents >= 1 && all.cases >= 1, JSON.stringify(all));
+  assert.ok(!/ลักทรัพย์|นายตัวอย่าง|docx|345/.test(JSON.stringify(st)), 'totals only: no names, files or case numbers');
+});
+
+test('v10 LINE: complainant links a case with its code and sees dates only', () => {
+  const post = (o) => JSON.parse(run('doPost(' + JSON.stringify({ postData: { contents: JSON.stringify(o) } }) + ')').text);
+  let calls = 0;
+  W.env.UrlFetchApp = { fetch: (url, opt) => {
+    calls++;
+    assert.strictEqual(url, 'https://api.line.me/oauth2/v2.1/verify');
+    const ok = opt.payload.id_token.startsWith('good');
+    return { getResponseCode: () => ok ? 200 : 400,
+      getContentText: () => JSON.stringify({ sub: 'U' + opt.payload.id_token, aud: opt.payload.client_id }) };
+  } };
+  assert.strictEqual(post({ action: 'line_cases', idToken: 'bad1' }).ok, false);
+  let r = post({ action: 'line_cases', idToken: 'good-A' });
+  assert.deepStrictEqual(r, { ok: true, cases: [] });
+  const code = run('readCases_()').find(x => x.caseNo === '345/2569').code;
+  r = post({ action: 'line_link', idToken: 'good-A', code: 'ZZZZ-ZZZZ' });
+  assert.ok(!r.ok && /ไม่พบรหัส/.test(r.error));
+  r = post({ action: 'line_link', idToken: 'good-A', code: code.toLowerCase().replace('-', ' ') });
+  assert.strictEqual(r.ok, true, r.error);
+  assert.strictEqual(r.cases.length, 1);
+  const c = r.cases[0];
+  assert.deepStrictEqual([c.caseNo, c.type, c.reported, c.notices, c.next.n], ['345/2569', 'ลักทรัพย์', '2026-10-20', ['2026-11-04'], 2]);
+  assert.ok(c.workDates.includes('2026-11-04'));
+  assert.ok(!/นายตัวอย่าง|docx|T\d\d:/.test(JSON.stringify(r)), 'no names, file names or times of day');
+  const links = W.ss.getSheetByName('Links');
+  assert.ok(!JSON.stringify(links.data).includes('Ugood-A'), 'raw LINE user ID never stored');
+  assert.strictEqual(post({ action: 'line_link', idToken: 'good-A', code }).cases.length, 1, 'linking twice keeps one');
+  assert.strictEqual(post({ action: 'line_cases', idToken: 'good-B' }).cases.length, 0, 'another LINE user sees nothing');
+  const before = calls;
+  post({ action: 'line_cases', idToken: 'good-A' });
+  assert.strictEqual(calls, before, 'verified token cached for a few minutes');
+  assert.strictEqual(post({ action: 'line_unlink', idToken: 'good-A', code }).cases.length, 0);
+  for (let i = 0; i < 5; i++) post({ action: 'line_link', idToken: 'good-C', code: 'AAAA-AAA' + i });
+  r = post({ action: 'line_link', idToken: 'good-C', code });
+  assert.ok(!r.ok && /1 ชั่วโมง/.test(r.error), 'locked out after 5 wrong codes');
+  W.env.UrlFetchApp = { fetch: () => { throw new Error('no network in tests'); } };
 });
 
 test('verify catches an edited row and an edited seal', () => {

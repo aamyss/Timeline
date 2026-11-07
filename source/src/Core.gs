@@ -405,6 +405,241 @@ var Core = (function () {
     ] };
   }
 
+  /* ---------- day summary (v9) ---------- */
+
+  var POINT_MIN = 15;   // a single record (one edit, one photo) counts as this many minutes of work
+
+  function mergeSpans(spans) {
+    var out = [];
+    spans.slice().sort(function (a, b) { return a[0] - b[0]; }).forEach(function (s) {
+      var last = out[out.length - 1];
+      if (last && s[0] <= last[1]) last[1] = Math.max(last[1], s[1]);
+      else out.push([s[0], s[1]]);
+    });
+    return out;
+  }
+
+  /** spans minus cuts (both [startMs, endMs] lists). */
+  function subtractSpans(spans, cuts) {
+    var out = [];
+    spans.forEach(function (s) {
+      var pieces = [[s[0], s[1]]];
+      cuts.forEach(function (c) {
+        var next = [];
+        pieces.forEach(function (p) {
+          if (c[1] <= p[0] || c[0] >= p[1]) { next.push(p); return; }
+          if (c[0] > p[0]) next.push([p[0], c[0]]);
+          if (c[1] < p[1]) next.push([c[1], p[1]]);
+        });
+        pieces = next;
+      });
+      out = out.concat(pieces);
+    });
+    return out.filter(function (p) { return p[1] > p[0]; });
+  }
+
+  /** A document he worked on (not Inquiry Copilot's automatic files, not a photo). */
+  function isDocPath(path) {
+    var parts = String(path || '').split('/');
+    if (parts.indexOf('__res__') >= 0 || parts.indexOf('__temp__') >= 0) return false;
+    var name = parts[parts.length - 1];
+    return !!name && name !== 'ห้ามลบ' && !/\.(jpe?g|heic|heif|png|mov|mp4)$/i.test(name);
+  }
+
+  function fmtDur(min) {
+    min = Math.round(min);
+    var h = Math.floor(min / 60), m = min % 60;
+    return h ? h + 'h' + (m ? ' ' + m + 'm' : '') : m + 'm';
+  }
+
+  var MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  function fmtDay(dateStr) { return parseInt(dateStr.slice(8, 10), 10) + ' ' + MON[parseInt(dateStr.slice(5, 7), 10) - 1]; }
+
+  /**
+   * Numbers for the summary card. d: {date, shifts, gaps, rosterKnown, entries (raw, each with duty),
+   * visits, now (Date)}. Times in entries/shifts/gaps are Bangkok ISO strings.
+   */
+  function daySummary(d) {
+    var dayStart = bkkDateTime(d.date).getTime();
+    var dayEnd = dayStart + DAY;
+    var nowMs = Math.min((d.now || new Date()).getTime(), dayEnd);
+    var ms = function (iso) { return new Date(iso).getTime(); };
+
+    // On duty: shift time so far minus gaps.
+    var shiftMin = 0, elapsedMin = 0, gapMin = 0;
+    var shiftSpans = (d.shifts || []).map(function (s) {
+      var a = Math.max(ms(s.start), dayStart), b = Math.min(ms(s.end), dayEnd);
+      shiftMin += Math.max(0, b - a) / MIN;
+      elapsedMin += Math.max(0, Math.min(b, nowMs) - a) / MIN;
+      return [a, b];
+    });
+    (d.gaps || []).forEach(function (g) { gapMin += (ms(g.end) - ms(g.start)) / MIN; });
+
+    // Work outside shifts: each record covers POINT_MIN minutes; ranged notes and place visits their span.
+    var spans = [];
+    (d.entries || []).forEach(function (e) {
+      if (/^calendar_|^location_checkin$|^place_/.test(e.kind)) return;   // plans; visits are added below
+      var a = ms(e.t);
+      var b = e.kind === 'note' && e.tEnd ? ms(e.tEnd) : a + POINT_MIN * MIN;
+      spans.push([a, Math.max(b, a + POINT_MIN * MIN)]);
+    });
+    (d.visits || []).forEach(function (v) { if (v.end) spans.push([ms(v.start), ms(v.end)]); });
+    var outside = subtractSpans(mergeSpans(spans).map(function (s) {
+      return [Math.max(s[0], dayStart), Math.min(s[1], dayEnd, Math.max(nowMs, s[0]))];
+    }), shiftSpans);
+    var outsideMin = 0;
+    outside.forEach(function (s) { outsideMin += (s[1] - s[0]) / MIN; });
+    var sessions = mergeSpans(outside.map(function (s) { return [s[0], s[1] + MIN]; })).length;   // touching pieces are one session
+
+    // Cases, files, photos, calendar.
+    var cases = {}, created = {}, edited = {}, deleted = {}, renamed = 0, taken = 0, gps = 0, added = 0, cal = [];
+    (d.entries || []).forEach(function (e) {
+      if (e.caseNo && !/^calendar_/.test(e.kind)) cases[e.caseNo] = true;
+      var doc = isDocPath(e.path);
+      if (e.kind === 'file_created') { if (e.isPhoto) added++; else if (doc) created[e.path] = true; }
+      else if (e.kind === 'file_modified' && doc) edited[e.path] = true;
+      else if (e.kind === 'file_deleted' && doc) deleted[e.path] = true;
+      else if (e.kind === 'file_renamed' && doc) renamed++;
+      else if (e.kind === 'photo_taken') { taken++; if (/maps\.google\.com/.test(e.proof || '')) gps++; }
+      else if ((e.kind === 'calendar_event' || e.kind === 'calendar_changed') && !e.plan) cal.push(e.title);
+    });
+    Object.keys(created).forEach(function (p) { delete edited[p]; });   // a new file's later edits aren't counted twice
+
+    return {
+      shiftMin: Math.round(shiftMin), elapsedMin: Math.round(elapsedMin), gapCount: (d.gaps || []).length, gapMin: Math.round(gapMin),
+      coveredMin: Math.round(Math.max(0, elapsedMin - gapMin)), shiftDone: nowMs >= Math.max.apply(null, shiftSpans.map(function (s) { return s[1]; }).concat([0])),
+      outsideMin: Math.round(outsideMin), outsideSessions: sessions,
+      cases: Object.keys(cases), created: Object.keys(created).length, edited: Object.keys(edited).length,
+      deleted: Object.keys(deleted).length, renamed: renamed, photosTaken: taken, photosGps: gps, photosAdded: added,
+      visits: (d.visits || []).map(function (v) { return { place: v.place, start: v.start, end: v.end }; }),
+      calendar: cal
+    };
+  }
+
+  /** Card lines, shared by the iPhone app and the nightly email: [{key, label, text, warn}]. */
+  function summaryLines(s, ctx) {
+    var L = [];
+    var shiftTxt = ctx.shifts.length
+      ? ctx.shifts.map(function (x) { return x.start.slice(11, 16) + '–' + x.end.slice(11, 16).replace('00:00', '24:00') + (x.label ? ' ' + x.label : ''); }).join(', ')
+      : (ctx.rosterKnown ? 'Off duty' : 'No roster entered');
+    L.push({ key: 'shift', label: 'Shift', text: shiftTxt });
+    if (s.shiftMin) {
+      var cov = fmtDur(s.coveredMin) + ' of ' + fmtDur(s.shiftDone ? s.shiftMin : s.elapsedMin) +
+        (s.shiftDone ? '' : ' so far (shift ' + fmtDur(s.shiftMin) + ')');
+      cov += s.gapCount ? ' · ' + s.gapCount + ' gap' + (s.gapCount > 1 ? 's' : '') + ' (' + fmtDur(s.gapMin) + ')' : ' · no gaps';
+      L.push({ key: 'onduty', label: 'On duty', text: cov, warn: s.gapCount > 0 });
+    }
+    if (s.outsideMin) L.push({ key: 'outside', label: ctx.rosterKnown ? 'Off duty work' : 'Work (no roster)',
+      text: 'about ' + fmtDur(s.outsideMin) + ' in ' + s.outsideSessions + ' session' + (s.outsideSessions > 1 ? 's' : '') });
+    if (s.cases.length) L.push({ key: 'cases', label: 'Cases', text: s.cases.length + ' — ' + s.cases.slice(0, 4).join(' · ') + (s.cases.length > 4 ? ' · +' + (s.cases.length - 4) : '') });
+    var f = [];
+    if (s.created) f.push(s.created + ' created');
+    if (s.edited) f.push(s.edited + ' edited');
+    if (s.renamed) f.push(s.renamed + ' renamed');
+    if (s.deleted) f.push(s.deleted + ' deleted');
+    if (f.length) L.push({ key: 'files', label: 'Documents', text: f.join(' · ') });
+    var p = [];
+    if (s.photosTaken) p.push(s.photosTaken + ' taken (' + s.photosGps + ' with location)');
+    if (s.photosAdded) p.push(s.photosAdded + ' added');
+    if (p.length) L.push({ key: 'photos', label: 'Photos', text: p.join(' · ') });
+    if (s.visits.length) L.push({ key: 'places', label: 'Places', text: s.visits.map(function (v) {
+      return v.place + ' ' + v.start.slice(11, 16) + '–' + (v.end ? (v.end.slice(0, 10) === v.start.slice(0, 10) ? v.end.slice(11, 16) : 'next day') : '?');
+    }).join(' · ') });
+    if (s.calendar.length) L.push({ key: 'calendar', label: 'Calendar', text: s.calendar.length + ' — ' + s.calendar.slice(0, 3).join(' · ') + (s.calendar.length > 3 ? ' · +' + (s.calendar.length - 3) : '') });
+    var n = ctx.notices;
+    if (n && (n.overdue || n.soon)) {
+      L.push({ key: 'notices', label: 'Progress notices', warn: !!n.overdue,
+        text: [n.overdue ? n.overdue + ' overdue' : '', n.soon ? n.soon + ' due within 7 days' : ''].filter(String).join(' · ') });
+    }
+    return L;
+  }
+
+  /* ---------- cases and progress notices (แจ้งความคืบหน้า) ---------- */
+
+  /** Inquiry Copilot case folder "2026-11-05_0939-จราจร_ชื่อ" -> {start, type}; anything else -> null. */
+  function caseFolderInfo(folder) {
+    var m = String(folder || '').match(/^(\d{4}-\d{2}-\d{2})_(\d{4})-([^_]*)/);
+    return m ? { start: m[1], type: m[3] } : null;
+  }
+
+  function addMonths(dateStr, n) {
+    var y = +dateStr.slice(0, 4), m = +dateStr.slice(5, 7) - 1 + n, d = +dateStr.slice(8, 10);
+    var last = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+    return new Date(Date.UTC(y, m, Math.min(d, last))).toISOString().slice(0, 10);
+  }
+
+  function daysBetween(a, b) { return Math.round((bkkDateTime(b) - bkkDateTime(a)) / DAY); }
+
+  /** Path of a row -> the case folder it sits in (the segment after a marker), or ''. */
+  function caseFolderOf(path, markers) {
+    var parts = String(path || '').split('/');
+    for (var i = 0; i < parts.length - 1; i++) {
+      if ((markers || []).indexOf(parts[i]) >= 0) return parts[i + 1];
+    }
+    return '';
+  }
+
+  /**
+   * Every Inquiry Copilot case seen in the log: {folder: {folder, start, type, deleted, workDates{}, last, notices[]}}.
+   * rows: log rows (objects). noticeWords: file-name words that mark a progress-notice letter.
+   * caseNoToFolder: {'12/2569': folder} from the Cases tab, so notes and calendar items typed with the number count.
+   */
+  function collectCases(rows, markers, noticeWords, caseNoToFolder) {
+    var cases = {};
+    var get = function (folder) {
+      var info = caseFolderInfo(folder);
+      if (!info) return null;
+      if (!cases[folder]) cases[folder] = { folder: folder, start: info.start, type: info.type, deleted: false, workDates: {}, last: '', notices: [], seen: {} };
+      return cases[folder];
+    };
+    rows.slice().sort(function (a, b) { return a.event_time < b.event_time ? -1 : a.event_time > b.event_time ? 1 : 0; }).forEach(function (r) {
+      var d = {};
+      try { d = JSON.parse(r.detail || '{}'); } catch (e) { /* plain */ }
+      var folder = d.path ? caseFolderOf(d.path, markers) : '';
+      if (!folder && r.case_no && caseNoToFolder && caseNoToFolder[r.case_no]) folder = caseNoToFolder[r.case_no];
+      var c = folder && get(folder);
+      if (!c) return;
+      var date = r.event_time.slice(0, 10);
+      if (d.path && /^folder_/.test(r.kind) && d.path.split('/').pop() === folder) {
+        c.deleted = r.kind === 'folder_deleted';
+        if (c.deleted) return;
+      }
+      if (/^calendar_/.test(r.kind)) return;   // plans, not work
+      c.workDates[date] = true;
+      if (r.event_time > c.last) c.last = r.event_time;
+      var name = d.path ? d.path.split('/').pop() : '';
+      if (name && /^file_(created|modified)$/.test(r.kind) && !c.seen[d.path] &&
+          (noticeWords || []).some(function (w) { return w && name.indexOf(w) >= 0; })) {
+        c.seen[d.path] = true;
+        c.notices.push(date);
+      }
+    });
+    Object.keys(cases).forEach(function (k) { cases[k].notices.sort(); delete cases[k].seen; });
+    return cases;
+  }
+
+  /**
+   * Progress-notice status of one case on asOf (YYYY-MM-DD).
+   * คำสั่ง ตร.ที่ 419/2556 บทที่ 2 ข้อ 1.2: in writing for every case. 1st at 30 days from the complaint;
+   * 2nd about 2 months after the 1st; 3rd when the file goes to the prosecutor or there is a result
+   * (closed = that date, from the Cases tab); extra ones on a warrant or arrest (not tracked).
+   */
+  function noticeStatus(start, notices, asOf, closed) {
+    var done = (notices || []).filter(function (x) { return x <= asOf; });
+    var next = null;
+    if (closed && closed <= asOf) {
+      if (!done.some(function (x) { return x >= closed; })) next = { n: done.length + 1, due: closed, final: true };
+    } else if (!done.length) {
+      next = { n: 1, due: addDays(start, 30) };
+    } else if (done.length === 1) {
+      next = { n: 2, due: addMonths(done[0], 2) };
+    } else {
+      next = { n: done.length + 1, due: '', final: true };   // when the file goes to the prosecutor
+    }
+    var left = next && next.due ? daysBetween(asOf, next.due) : null;
+    return { start: start, done: done, next: next, daysLeft: left, overdue: left !== null && left < 0 };
+  }
+
   /* ---------- hash chain ---------- */
 
   /** The exact text that is hashed for a row: previous hash + every column, unit-separated. */
@@ -427,7 +662,10 @@ var Core = (function () {
     isNoise: isNoise, isClutter: isClutter, under: under, distanceM: distanceM, nearestPlace: nearestPlace,
     phoneRow: phoneRow, placeVisits: placeVisits, fileStrength: fileStrength, pcRows: pcRows,
     diffCalendarEvent: diffCalendarEvent, shiftIntervals: shiftIntervals, dutyAt: dutyAt,
-    findGaps: findGaps, groupEntries: groupEntries, dayStrip: dayStrip, canonical: canonical, csvLine: csvLine
+    findGaps: findGaps, groupEntries: groupEntries, dayStrip: dayStrip, canonical: canonical, csvLine: csvLine,
+    mergeSpans: mergeSpans, subtractSpans: subtractSpans, isDocPath: isDocPath, fmtDur: fmtDur, fmtDay: fmtDay,
+    daySummary: daySummary, summaryLines: summaryLines, caseFolderInfo: caseFolderInfo, caseFolderOf: caseFolderOf,
+    addMonths: addMonths, daysBetween: daysBetween, collectCases: collectCases, noticeStatus: noticeStatus
   };
 })();
 

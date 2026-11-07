@@ -19,7 +19,8 @@ console.log('post:', run('doPost(__req)').text);
 const root = path.join(__dirname, '..', '..');   // repo root = the app
 const srv = http.createServer((q, s) => {
   const f = path.join(root, decodeURIComponent(q.url.split('?')[0].replace(/^\/app\//, '/')) || 'index.html');
-  const file = fs.existsSync(f) && fs.statSync(f).isFile() ? f : path.join(root, 'index.html');
+  const g = fs.existsSync(f) && fs.statSync(f).isDirectory() ? path.join(f, 'index.html') : f;
+  const file = fs.existsSync(g) && fs.statSync(g).isFile() ? g : path.join(root, 'index.html');
   s.writeHead(200); s.end(fs.readFileSync(file));
 });
 (async () => {
@@ -52,6 +53,8 @@ const srv = http.createServer((q, s) => {
   check('case sub-folder hidden', !/ของกลาง/.test(txt) && /1 automatic Inquiry Copilot item hidden/.test(await page.innerText('#counts')));
   check('html in names is escaped (no script ran)', dialogs.length === 0 && /<img src=x/.test(txt));
   check('install hint shown in browser', await page.isVisible('#installHint'));
+  const sum = await page.innerText('#sum');
+  check('v9 summary card on top (shift, cases, documents)', /Shift/.test(sum) && /Cases/.test(sum) && /Documents\s+1 created/.test(sum));
   check('hash kept for Add to Home Screen', page.url().includes('#s='));
   await page.fill('#nFrom', '09:00'); await page.fill('#nText', 'ออกตรวจที่เกิดเหตุ'); await page.click('#nSave');
   await page.waitForFunction(() => /ออกตรวจที่เกิดเหตุ/.test(document.getElementById('list').innerText), null, { timeout: 5000 });
@@ -64,6 +67,38 @@ const srv = http.createServer((q, s) => {
   check('bad setup link rejected', /isn't a valid/.test(await p2.innerText('#setupErr')));
   await page.goto(base); await page.waitForSelector('.row'); await page.screenshot({ path: '/tmp/app-shot.png', fullPage: false });
   check('no page errors', errors.length === 0 || (console.log(errors), false));
+
+  // v10: the LINE page (LIFF SDK stubbed; LINE's token check faked)
+  run('collectAll()');
+  run("saveLineSetup({liffId:'2001234567-AbCdEfGh', channelId:'2001234567', publicStats:true})");
+  W.env.UrlFetchApp = { fetch: (url, o) => ({ getResponseCode: () => 200, getContentText: () => JSON.stringify({ sub: 'Utest', aud: o.payload.client_id }) }) };
+  const code = run('readCases_()')[0].code;
+  const lp = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  const lerr = []; lp.on('pageerror', e => lerr.push(e.message));
+  await lp.route('https://static.line-scdn.net/**', r => r.fulfill({ status: 200, contentType: 'text/javascript',
+    body: 'window.liff={init:function(){return Promise.resolve()},isLoggedIn:function(){return true},getIDToken:function(){return "tok"},login:function(){}};' }));
+  await lp.route('https://script.google.com/**', async (route) => {
+    const req = route.request(); let text;
+    if (req.method() === 'GET') { const uu = new URL(req.url()); const p = {}; uu.searchParams.forEach((v, k) => { p[k] = v; }); W.env.__e = { parameter: p }; text = run('doGet(__e)').text; }
+    else { W.env.__e = { postData: { contents: req.postData() } }; text = run('doPost(__e)').text; }
+    await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: text });
+  });
+  const lbase = 'http://localhost:' + srv.address().port + '/line/';
+  await lp.goto(lbase); await lp.waitForTimeout(300);
+  check('LINE page without ?u asks to open from LINE', /เปิดหน้านี้จากเมนูใน LINE/.test(await lp.innerText('#stats')));
+  await lp.goto(lbase + '?u=AKfycbTESTdeployment0001'); await lp.waitForSelector('.num', { timeout: 5000 });
+  const st = await lp.innerText('#stats');
+  check('LINE ผลงาน shows totals only', /ชั่วโมงปฏิบัติหน้าที่ตามเวร/.test(st) && /เอกสารที่จัดทำ/.test(st) && !/Xpander|docx/.test(st));
+  await lp.screenshot({ path: '/tmp/line-stats.png' });
+  await lp.goto(lbase + '?u=AKfycbTESTdeployment0001&tab=cases'); await lp.waitForTimeout(500);
+  await lp.fill('#code', 'zzzz zzzz'); await lp.click('#link'); await lp.waitForTimeout(300);
+  check('LINE wrong code refused', /ไม่พบรหัส/.test(await lp.innerText('#codeErr')));
+  await lp.fill('#code', code.toLowerCase()); await lp.click('#link');
+  await lp.waitForSelector('#caseList h2', { timeout: 5000 });
+  const ct = await lp.innerText('#caseList');
+  check('LINE คดีของฉัน shows the linked case with dates, no names', /คดีจราจร/.test(ct) && /ครั้งที่ 1 ภายใน 5 ธ.ค. 2569/.test(ct) && !/Xpander/.test(ct));
+  await lp.screenshot({ path: '/tmp/line-cases.png', fullPage: true });
+  check('LINE page: no errors', lerr.length === 0 || (console.log(lerr), false));
   await browser.close(); srv.close();
   console.log(ok + ' ok, ' + fail + ' failed'); process.exit(fail ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex">
+<title>ผลงานและติดตามคดี</title>
+<style>
+  :root { --bg:#f4f5f4; --fg:#1f1f1f; --muted:#6b6b6b; --line:#e3e3e0; --card:#fff; --accent:#06c755; --accentfg:#fff;
+    --amber:#8a5300; --amberbg:#fdf0d8; --red:#a32d2d; --chip:#eef0ee; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#151615; --fg:#ecebe6; --muted:#a3a29b; --line:#33332f; --card:#222321; --amber:#f2c06b; --amberbg:#43300f; --red:#f09595; --chip:#2d2e2c; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,"Noto Sans Thai",sans-serif; background:var(--bg); color:var(--fg); font-size:15px; line-height:1.5; -webkit-text-size-adjust:100%; }
+  .wrap { max-width:560px; margin:0 auto; padding:calc(10px + env(safe-area-inset-top)) 14px calc(32px + env(safe-area-inset-bottom)); }
+  .tabs { display:grid; grid-template-columns:1fr 1fr; background:var(--card); border-radius:12px; padding:4px; gap:4px; position:sticky; top:6px; z-index:2; box-shadow:0 1px 3px rgba(0,0,0,.06); }
+  .tabs button { border:0; background:none; color:var(--muted); font:inherit; font-weight:600; padding:9px; border-radius:9px; }
+  .tabs button.on { background:var(--accent); color:var(--accentfg); }
+  .card { background:var(--card); border-radius:14px; padding:14px; margin-top:12px; }
+  h2 { font-size:16px; margin:0 0 10px; }
+  .nums { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .num b { display:block; font-size:24px; line-height:1.2; font-variant-numeric:tabular-nums; }
+  .num span { font-size:12px; color:var(--muted); }
+  .muted { color:var(--muted); font-size:13px; }
+  .row { display:grid; grid-template-columns:118px minmax(0,1fr); gap:8px; padding:5px 0; border-top:1px solid var(--line); font-size:14px; }
+  .row:first-of-type { border-top:0; }
+  .row .k { color:var(--muted); }
+  .due { color:var(--amber); } .over { color:var(--red); }
+  .chips { display:flex; flex-wrap:wrap; gap:5px; align-items:flex-start; align-content:flex-start; }
+  .chip { background:var(--chip); border-radius:6px; padding:1px 7px; font-size:12px; }
+  input { width:100%; font-size:18px; letter-spacing:2px; text-transform:uppercase; padding:10px; border:1px solid var(--line); border-radius:10px; background:var(--bg); color:var(--fg); font-family:ui-monospace,Menlo,monospace; }
+  button.main { width:100%; margin-top:8px; font:inherit; font-weight:600; padding:11px; border:0; border-radius:10px; background:var(--accent); color:var(--accentfg); }
+  button.main:disabled { opacity:.6; }
+  button.link { background:none; border:0; padding:0; color:var(--muted); text-decoration:underline; font:inherit; font-size:12px; }
+  .err { color:var(--red); font-size:13px; min-height:18px; margin-top:6px; }
+  .hide { display:none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="tabs" role="tablist">
+    <button id="tStats" role="tab" class="on">ผลงาน</button>
+    <button id="tCases" role="tab">คดีของฉัน</button>
+  </div>
+
+  <div id="stats"><div class="card muted">กำลังโหลด…</div></div>
+
+  <div id="cases" class="hide">
+    <div id="caseList"></div>
+    <div class="card">
+      <h2>ติดตามคดี</h2>
+      <div class="muted" style="margin-bottom:8px">ใส่รหัสติดตามคดี 8 ตัวที่ได้รับจากพนักงานสอบสวน</div>
+      <input id="code" maxlength="9" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABCD-EFGH">
+      <div class="err" id="codeErr"></div>
+      <button class="main" id="link">ติดตามคดีนี้</button>
+    </div>
+    <div class="muted" style="margin:14px 4px 0">หน้านี้แสดงเฉพาะวันที่ดำเนินการในคดีและกำหนดการแจ้งความคืบหน้า ไม่แสดงชื่อบุคคลหรือเอกสาร
+      ท่านจะได้รับหนังสือแจ้งความคืบหน้าเป็นลายลักษณ์อักษรตามปกติ</div>
+  </div>
+</div>
+
+<script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<script>
+(function () {
+  'use strict';
+  function $(id) { return document.getElementById(id); }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  var TH_MONTHS = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+  var TH_SHORT = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+  function thDate(d) { return d ? parseInt(d.slice(8, 10), 10) + ' ' + TH_SHORT[+d.slice(5, 7) - 1] + ' ' + (+d.slice(0, 4) + 543) : ''; }
+  function thMonth(m) { return TH_MONTHS[+m.slice(5, 7) - 1] + ' ' + (+m.slice(0, 4) + 543); }
+  function num(x) { return Number(x).toLocaleString('th-TH', { maximumFractionDigits: 1 }); }
+
+  /* The web app ID comes in the LIFF endpoint URL (?u=…), set in the LINE console; kept for the redirect back. */
+  var href = location.href;
+  try { href = decodeURIComponent(href); } catch (e) { /* keep */ }
+  var u = new URLSearchParams(location.search).get('u') || '';
+  try { if (/^[A-Za-z0-9_-]{20,}$/.test(u)) sessionStorage.setItem('wtl.u', u); else u = sessionStorage.getItem('wtl.u') || ''; } catch (e) { /* private mode */ }
+  if (!/^[A-Za-z0-9_-]{20,}$/.test(u)) {
+    $('stats').innerHTML = '<div class="card">กรุณาเปิดหน้านี้จากเมนูใน LINE</div>';
+    $('tCases').disabled = true;
+    return;
+  }
+  var API = 'https://script.google.com/macros/s/' + u + '/exec';
+  var cfg = null, liffReady = null, casesLoaded = false;
+
+  function get(q) {
+    return fetch(API + '?' + q, { cache: 'no-store', referrerPolicy: 'no-referrer' }).then(function (r) { return r.json(); })
+      .then(function (j) { if (!j.ok) throw new Error(j.error || 'เกิดข้อผิดพลาด'); return j; });
+  }
+  function post(body) {
+    return fetch(API, { method: 'POST', body: JSON.stringify(body), cache: 'no-store', referrerPolicy: 'no-referrer',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' } }).then(function (r) { return r.json(); })
+      .then(function (j) { if (!j.ok) throw new Error(j.error || 'เกิดข้อผิดพลาด'); return j; });
+  }
+
+  /* ---------- tabs ---------- */
+  function show(tab) {
+    $('tStats').classList.toggle('on', tab === 'stats');
+    $('tCases').classList.toggle('on', tab === 'cases');
+    $('stats').classList.toggle('hide', tab !== 'stats');
+    $('cases').classList.toggle('hide', tab !== 'cases');
+    if (tab === 'cases' && !casesLoaded) loadCases();
+  }
+  $('tStats').onclick = function () { show('stats'); };
+  $('tCases').onclick = function () { show('cases'); };
+
+  /* ---------- ผลงาน: totals only ---------- */
+  function renderStats(j) {
+    if (j.off) { $('stats').innerHTML = '<div class="card muted">ยังไม่เปิดเผยข้อมูลผลงาน</div>'; return; }
+    var label = { month: function (p) { return 'เดือนนี้ · ' + thMonth(p.label); }, last: function (p) { return thMonth(p.label); },
+      all: function (p) { return 'ตั้งแต่ ' + thMonth(p.label); } };
+    $('stats').innerHTML = j.periods.map(function (p) {
+      return '<div class="card"><h2>' + esc(label[p.key](p)) + '</h2><div class="nums">' +
+        '<div class="num"><b>' + num(p.onDutyHours) + '</b><span>ชั่วโมงปฏิบัติหน้าที่ตามเวร</span></div>' +
+        '<div class="num"><b>' + num(p.outsideHours) + '</b><span>ชั่วโมงทำงานนอกเวลาเวร (โดยประมาณ)</span></div>' +
+        '<div class="num"><b>' + num(p.cases) + '</b><span>คดีที่ดำเนินการ</span></div>' +
+        '<div class="num"><b>' + num(p.documents) + '</b><span>เอกสารที่จัดทำ</span></div></div></div>';
+    }).join('') + '<div class="muted" style="margin:12px 4px 0">นับจากบันทึกการทำงานอัตโนมัติ ข้อมูล ณ ' +
+      esc(thDate(j.asOf.slice(0, 10))) + ' เวลา ' + esc(j.asOf.slice(11, 16)) + ' น. ไม่แสดงรายละเอียดคดีหรือบุคคล</div>';
+  }
+
+  /* ---------- คดีของฉัน: signed in with LINE ---------- */
+  function idToken() {
+    return liffReady.then(function () {
+      if (!liff.isLoggedIn()) { liff.login({ redirectUri: location.href }); throw new Error('กำลังเข้าสู่ระบบ LINE…'); }
+      var t = liff.getIDToken();
+      if (!t) throw new Error('กรุณาปิดแล้วเปิดหน้านี้ใหม่จากใน LINE');
+      return t;
+    });
+  }
+
+  function renderCases(list) {
+    casesLoaded = true;
+    if (!list.length) { $('caseList').innerHTML = ''; return; }
+    $('caseList').innerHTML = list.map(function (c) {
+      var title = c.caseNo ? 'คดีที่ ' + c.caseNo : 'คดี' + c.type;
+      var next = '—';
+      if (c.next) {
+        if (!c.next.due) next = 'ครั้งที่ ' + c.next.n + ' เมื่อส่งสำนวนให้พนักงานอัยการหรือคดีมีผล';
+        else {
+          var left = Math.round((new Date(c.next.due + 'T00:00:00+07:00') - new Date(new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10) + 'T00:00:00+07:00')) / 864e5);
+          next = '<span class="' + (left < 0 ? 'over' : left <= 7 ? 'due' : '') + '">ครั้งที่ ' + c.next.n + ' ภายใน ' + esc(thDate(c.next.due)) + '</span>';
+        }
+      } else if (c.closed) next = 'แจ้งครบแล้ว';
+      var days = c.workDates.slice(0, 12).map(function (d) { return '<span class="chip">' + esc(thDate(d)) + '</span>'; }).join('');
+      if (c.workDates.length > 12) days += '<span class="chip">+' + (c.workDates.length - 12) + ' วัน</span>';
+      return '<div class="card"><h2>' + esc(title) + '</h2>' +
+        '<div class="row"><div class="k">ประเภท</div><div>' + esc(c.type || '—') + '</div></div>' +
+        '<div class="row"><div class="k">รับแจ้งความ</div><div>' + esc(thDate(c.reported)) + '</div></div>' +
+        '<div class="row"><div class="k">แจ้งความคืบหน้าแล้ว</div><div>' + (c.notices.length ? c.notices.map(function (d, i) { return 'ครั้งที่ ' + (i + 1) + ' · ' + esc(thDate(d)); }).join('<br>') : 'ยังไม่มี') + '</div></div>' +
+        '<div class="row"><div class="k">แจ้งครั้งถัดไป</div><div>' + next + '</div></div>' +
+        (c.closed ? '<div class="row"><div class="k">ส่งสำนวน</div><div>' + esc(thDate(c.closed)) + '</div></div>' : '') +
+        '<div class="row"><div class="k">ดำเนินการล่าสุด</div><div>' + esc(thDate(c.lastWorked) || '—') + '</div></div>' +
+        '<div class="row"><div class="k">วันที่ดำเนินการ<br>(' + c.workDates.length + ' วัน)</div><div class="chips">' + (days || '—') + '</div></div>' +
+        '<div style="margin-top:8px;text-align:right"><button class="link" data-unlink="' + esc(c.code) + '">เลิกติดตาม</button></div></div>';
+    }).join('');
+  }
+
+  function loadCases() {
+    if (!cfg || !cfg.casesOn || !cfg.liffId) { $('caseList').innerHTML = '<div class="card muted">ยังไม่เปิดใช้การติดตามคดี</div>'; $('link').disabled = true; return; }
+    $('caseList').innerHTML = '<div class="card muted">กำลังโหลด…</div>';
+    idToken().then(function (t) { return post({ action: 'line_cases', idToken: t }); })
+      .then(function (j) { renderCases(j.cases); })
+      .catch(function (e) { $('caseList').innerHTML = '<div class="card err">' + esc(e.message) + '</div>'; });
+  }
+
+  $('code').oninput = function () { $('codeErr').textContent = ''; };
+  $('link').onclick = function () {
+    var code = $('code').value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (code.length !== 8) { $('codeErr').textContent = 'รหัสมี 8 ตัว เช่น ABCD-EFGH'; return; }
+    $('link').disabled = true;
+    idToken().then(function (t) { return post({ action: 'line_link', idToken: t, code: code }); })
+      .then(function (j) { $('code').value = ''; renderCases(j.cases); })
+      .catch(function (e) { $('codeErr').textContent = e.message; })
+      .then(function () { $('link').disabled = false; });
+  };
+  $('caseList').addEventListener('click', function (ev) {
+    var b = ev.target.closest('button[data-unlink]');
+    if (!b || !confirm('เลิกติดตามคดีนี้?')) return;
+    idToken().then(function (t) { return post({ action: 'line_unlink', idToken: t, code: b.getAttribute('data-unlink') }); })
+      .then(function (j) { renderCases(j.cases); })
+      .catch(function (e) { alert(e.message); });
+  });
+
+  /* ---------- start ---------- */
+  var wantCases = /[?&]tab=cases/.test(href);
+  get('api=line_config').then(function (j) {
+    cfg = j;
+    liffReady = j.liffId && window.liff ? liff.init({ liffId: j.liffId }) : Promise.reject(new Error('ยังไม่เปิดใช้การติดตามคดี'));
+    liffReady.catch(function () { /* shown when the tab is used */ });
+    if (wantCases) show('cases');
+    return get('api=stats').then(renderStats);
+  }).catch(function (e) {
+    $('stats').innerHTML = '<div class="card err">โหลดไม่สำเร็จ: ' + esc(e.message) + '</div>';
+  });
+})();
+</script>
+</body>
+</html>

@@ -9,6 +9,8 @@ var CFG_DEFAULTS = {
   SEAL_RECIPIENTS: '',                        // daily seal email; empty = your own Gmail. Add police mail with a comma
   APP_URL: 'https://aamyss.github.io/Timeline/', // the iPhone app page (GitHub Pages)
   CASE_FOLDER_MARKERS: 'แฟ้มคดี,Cases',         // folder names whose sub-folders are cases
+  NOTICE_WORDS: 'แจ้งความคืบหน้า,คืบหน้า',       // a file in a case folder whose name has one of these = a progress notice sent
+  PUBLIC_STATS: 'off',                        // 'on' shows work totals on the LINE page (ask your ผกก. first)
   EXCLUDE_PATHS: '#Police/Work Timeline,#Police/Inquiry Copilot Mirror' // never logged (comma-separated)
 };
 
@@ -30,6 +32,7 @@ function cfg_() {
   out.backfillMs = Core.bkkDateTime(out.BACKFILL_FROM).getTime();
   out.exclude = out.EXCLUDE_PATHS.split(',').map(function (s) { return s.trim(); }).filter(String);
   out.markers = out.CASE_FOLDER_MARKERS.split(',').map(function (s) { return s.trim(); }).filter(String);
+  out.noticeWords = out.NOTICE_WORDS.split(',').map(function (s) { return s.trim(); }).filter(String);
   return out;
 }
 
@@ -61,8 +64,8 @@ function setup() {
 
   ensureTab_(ss, 'Roster', ['date', 'start', 'end', 'label'],
     'One row per shift. date = 2026-11-05, start/end = 08:00 / 16:00. End earlier than start = overnight.');
-  ensureTab_(ss, 'Cases', ['case_folder', 'case_no', 'note'],
-    'Attach a real case number to a case folder name (e.g. an Inquiry Copilot folder).');
+  ensureTab_(ss, 'Cases', CASE_HEADERS,
+    'One row per case folder (added automatically). Fill case_no with the real case number; closed when the file goes to the prosecutor.');
   ensureTab_(ss, 'Seals', ['date', 'rows', 'first_id', 'last_id', 'chain_hash', 'sent_at', 'sent_to']);
   var places = ensureTab_(ss, 'Places', ['name', 'lat', 'lon', 'radius_m'],
     'Places for iPhone arrived/left and for naming check-ins. name must match the name in the iPhone automation.');
