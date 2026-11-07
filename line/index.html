@@ -27,12 +27,10 @@
   .row { display:grid; grid-template-columns:118px minmax(0,1fr); gap:8px; padding:5px 0; border-top:1px solid var(--line); font-size:14px; }
   .row:first-of-type { border-top:0; }
   .row .k { color:var(--muted); }
-  .due { color:var(--amber); } .over { color:var(--red); }
-  .chips { display:flex; flex-wrap:wrap; gap:5px; align-items:flex-start; align-content:flex-start; }
-  .chip { background:var(--chip); border-radius:6px; padding:1px 7px; font-size:12px; }
   input { width:100%; font-size:18px; letter-spacing:2px; text-transform:uppercase; padding:10px; border:1px solid var(--line); border-radius:10px; background:var(--bg); color:var(--fg); font-family:ui-monospace,Menlo,monospace; }
   button.main { width:100%; margin-top:8px; font:inherit; font-weight:600; padding:11px; border:0; border-radius:10px; background:var(--accent); color:var(--accentfg); }
   button.main:disabled { opacity:.6; }
+  a { color:var(--muted); }
   button.link { background:none; border:0; padding:0; color:var(--muted); text-decoration:underline; font:inherit; font-size:12px; }
   .err { color:var(--red); font-size:13px; min-height:18px; margin-top:6px; }
   .hide { display:none; }
@@ -56,9 +54,10 @@
       <div class="err" id="codeErr"></div>
       <button class="main" id="link">ติดตามคดีนี้</button>
     </div>
-    <div class="muted" style="margin:14px 4px 0">หน้านี้แสดงเฉพาะวันที่ดำเนินการในคดีและกำหนดการแจ้งความคืบหน้า ไม่แสดงชื่อบุคคลหรือเอกสาร
-      ท่านจะได้รับหนังสือแจ้งความคืบหน้าเป็นลายลักษณ์อักษรตามปกติ</div>
+    <div class="muted" style="margin:14px 4px 0">หน้านี้แสดงเฉพาะข้อมูลความคืบหน้าโดยย่อ ไม่แสดงชื่อบุคคลหรือเอกสาร
+      ท่านจะได้รับหนังสือแจ้งความคืบหน้าเป็นลายลักษณ์อักษรตามปกติ หากต้องการรายละเอียดเพิ่มเติม สอบถามพนักงานสอบสวนได้ทางแชต</div>
   </div>
+  <div class="muted" style="text-align:center;margin-top:18px"><a href="privacy.html">นโยบายความเป็นส่วนตัว</a> · <a href="terms.html">ข้อกำหนดการใช้งาน</a></div>
 </div>
 
 <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
@@ -141,24 +140,12 @@
     if (!list.length) { $('caseList').innerHTML = ''; return; }
     $('caseList').innerHTML = list.map(function (c) {
       var title = c.caseNo ? 'คดีที่ ' + c.caseNo : 'คดี' + c.type;
-      var next = '—';
-      if (c.next) {
-        if (!c.next.due) next = 'ครั้งที่ ' + c.next.n + ' เมื่อส่งสำนวนให้พนักงานอัยการหรือคดีมีผล';
-        else {
-          var left = Math.round((new Date(c.next.due + 'T00:00:00+07:00') - new Date(new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10) + 'T00:00:00+07:00')) / 864e5);
-          next = '<span class="' + (left < 0 ? 'over' : left <= 7 ? 'due' : '') + '">ครั้งที่ ' + c.next.n + ' ภายใน ' + esc(thDate(c.next.due)) + '</span>';
-        }
-      } else if (c.closed) next = 'แจ้งครบแล้ว';
-      var days = c.workDates.slice(0, 12).map(function (d) { return '<span class="chip">' + esc(thDate(d)) + '</span>'; }).join('');
-      if (c.workDates.length > 12) days += '<span class="chip">+' + (c.workDates.length - 12) + ' วัน</span>';
       return '<div class="card"><h2>' + esc(title) + '</h2>' +
         '<div class="row"><div class="k">ประเภท</div><div>' + esc(c.type || '—') + '</div></div>' +
         '<div class="row"><div class="k">รับแจ้งความ</div><div>' + esc(thDate(c.reported)) + '</div></div>' +
         '<div class="row"><div class="k">แจ้งความคืบหน้าแล้ว</div><div>' + (c.notices.length ? c.notices.map(function (d, i) { return 'ครั้งที่ ' + (i + 1) + ' · ' + esc(thDate(d)); }).join('<br>') : 'ยังไม่มี') + '</div></div>' +
-        '<div class="row"><div class="k">แจ้งครั้งถัดไป</div><div>' + next + '</div></div>' +
         (c.closed ? '<div class="row"><div class="k">ส่งสำนวน</div><div>' + esc(thDate(c.closed)) + '</div></div>' : '') +
         '<div class="row"><div class="k">ดำเนินการล่าสุด</div><div>' + esc(thDate(c.lastWorked) || '—') + '</div></div>' +
-        '<div class="row"><div class="k">วันที่ดำเนินการ<br>(' + c.workDates.length + ' วัน)</div><div class="chips">' + (days || '—') + '</div></div>' +
         '<div style="margin-top:8px;text-align:right"><button class="link" data-unlink="' + esc(c.code) + '">เลิกติดตาม</button></div></div>';
     }).join('');
   }

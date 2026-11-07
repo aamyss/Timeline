@@ -96,7 +96,7 @@ const srv = http.createServer((q, s) => {
   await lp.fill('#code', code.toLowerCase()); await lp.click('#link');
   await lp.waitForSelector('#caseList h2', { timeout: 5000 });
   const ct = await lp.innerText('#caseList');
-  check('LINE คดีของฉัน shows the linked case with dates, no names', /คดีจราจร/.test(ct) && /ครั้งที่ 1 ภายใน 5 ธ.ค. 2569/.test(ct) && !/Xpander/.test(ct));
+  check('LINE คดีของฉัน shows the linked case with dates, no names', /คดีจราจร/.test(ct) && /รับแจ้งความ\s+5 พ.ย. 2569/.test(ct) && !/ภายใน|วันที่ดำเนินการ|Xpander/.test(ct));
   await lp.screenshot({ path: '/tmp/line-cases.png', fullPage: true });
   check('LINE page: no errors', lerr.length === 0 || (console.log(lerr), false));
   await browser.close(); srv.close();

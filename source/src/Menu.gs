@@ -12,6 +12,7 @@ function onOpen() {
     .addItem('Verify log', 'menuVerify')
     .addSeparator()
     .addItem('Update Cases tab', 'menuCases')
+    .addItem('Case report (for a complainant)', 'menuCaseReport')
     .addItem('LINE page setup', 'menuLine')
     .addToUi();
 }
@@ -29,6 +30,34 @@ function menuVerify() { alert_(verifyLog()); }
 function menuCases() {
   var n = syncCasesTab_();
   alert_(n ? n + ' case' + (n > 1 ? 's' : '') + ' added to the Cases tab, each with a LINE code.' : 'The Cases tab is up to date.');
+}
+
+/** Work dates and notices for one case, ready to copy into a reply when a complainant asks. */
+function menuCaseReport() {
+  var ui = SpreadsheetApp.getUi();
+  var r = ui.prompt('Case report', 'Enter the case\'s LINE code, case number (e.g. 512/2569) or folder name:', ui.ButtonSet.OK_CANCEL);
+  if (r.getSelectedButton() !== ui.Button.OK) return;
+  var c = caseReport_(r.getResponseText());
+  if (!c) { ui.alert('No case found for that.'); return; }
+  var th = function (d) {
+    if (!d) return '';
+    var m = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+    return parseInt(d.slice(8, 10), 10) + ' ' + m[parseInt(d.slice(5, 7), 10) - 1] + ' ' + (parseInt(d.slice(0, 4), 10) + 543);
+  };
+  var lines = [
+    (c.caseNo ? 'คดีที่ ' + c.caseNo : 'คดี' + c.type) + (c.caseNo && c.type ? ' (' + c.type + ')' : ''),
+    'รับแจ้งความ: ' + th(c.start),
+    'แจ้งความคืบหน้าแล้ว: ' + (c.notices.length ? c.notices.map(function (d, i) { return 'ครั้งที่ ' + (i + 1) + ' ' + th(d); }).join(', ') : 'ยังไม่มี'),
+    'แจ้งครั้งถัดไป: ' + (!c.next ? '—' : c.next.due ? 'ครั้งที่ ' + c.next.n + ' ภายใน ' + th(c.next.due) : 'ครั้งที่ ' + c.next.n + ' เมื่อส่งสำนวนให้พนักงานอัยการ'),
+    c.closed ? 'ส่งสำนวน: ' + th(c.closed) : '',
+    'วันที่ดำเนินการในคดี (' + c.workDates.length + ' วัน): ' + c.workDates.map(th).join(', ')
+  ].filter(String).join('\n');
+  var html = HtmlService.createHtmlOutput('<div style="font-family:sans-serif;font-size:13px">' +
+    '<div style="color:#555;margin-bottom:6px">Folder: ' + esc_(c.folder) + '</div>' +
+    '<textarea readonly onclick="this.select()" style="width:100%;height:300px;font-size:14px">' + esc_(lines) + '</textarea>' +
+    '<div style="color:#555;margin-top:6px">Check it before sending. Work dates come from the log (files, notes, place visits), not the calendar.</div></div>')
+    .setWidth(520).setHeight(420);
+  ui.showModalDialog(html, 'Case report');
 }
 
 /** LIFF ID, LINE Login channel ID and the public-totals switch. None of these is a secret. */

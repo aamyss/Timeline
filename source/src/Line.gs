@@ -5,11 +5,12 @@
  *                    GET ?api=stats         work totals only (off until PUBLIC_STATS = on)
  * Signed in to LINE: POST {action: line_cases | line_link | line_unlink, idToken, code?}
  *   The LINE ID token is checked with LINE's server; only a hash of the LINE user ID is stored.
- *   A complainant sees, for the cases they linked with a code: the dates worked on the case,
- *   progress-notice dates and the next due date. Never file names, names of people or times of day.
+ *   A complainant sees, for the cases they linked with a code: case number and type, complaint date,
+ *   progress notices sent, the closed date and the last day worked. Never file names, names of people,
+ *   times of day, the list of work dates or the next due date (he gives those on request: menu Case report).
  */
 var CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';   // no 0/O, 1/I/L
-var LINK_HEADERS = ['user', 'case_folder', 'linked_at'];
+var LINK_HEADERS = ['user', 'case_folder', 'linked_at', 'code'];   // a link lasts only while the case keeps that code
 
 function newCaseCode_() {
   var b = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, Utilities.getUuid() + Utilities.getUuid(), Utilities.Charset.UTF_8);
@@ -125,33 +126,50 @@ function linksTab_() {
   return ensureTab_(ss_(), 'Links', LINK_HEADERS, 'LINE users who follow a case. user = a one-way hash of their LINE ID, not the ID itself.');
 }
 
-function linkedFolders_(who) {
+/** Cases this LINE user follows. Clearing a case's line_code (a new one is made hourly) drops its old followers. */
+function linkedFolders_(who, ctx) {
   var sh = linksTab_();
   if (sh.getLastRow() < 2) return [];
   var out = [];
-  sh.getRange(2, 1, sh.getLastRow() - 1, 2).getValues().forEach(function (r) {
-    if (String(r[0]) === who && r[1] && out.indexOf(String(r[1])) < 0) out.push(String(r[1]));
+  sh.getRange(2, 1, sh.getLastRow() - 1, 4).getValues().forEach(function (r) {
+    var f = String(r[1]), info = ctx.caseInfo[f];
+    if (String(r[0]) === who && info && info.code && String(r[3]) === info.code && out.indexOf(f) < 0) out.push(f);
   });
   return out;
 }
 
-/** What a complainant may see about one case. */
+/** What a complainant may see about one case (no work dates, no next due date; he gives those on request). */
 function publicCase_(ctx, folder) {
-  var k = ctx.cases[folder] || { start: '', type: '', workDates: {}, last: '', notices: [] };
+  var k = ctx.cases[folder] || { start: '', type: '', last: '', notices: [] };
   var info = ctx.caseInfo[folder] || {};
-  var today = Core.toBkkIso(new Date()).slice(0, 10);
-  var st = k.start ? Core.noticeStatus(k.start, k.notices, today, info.closed) : { done: [], next: null };
   return {
     code: info.code || '',
     caseNo: info.caseNo || '',
     type: k.type || (Core.caseFolderInfo(folder) || {}).type || '',
     reported: k.start,
-    workDates: Object.keys(k.workDates).sort().reverse(),
     lastWorked: k.last ? k.last.slice(0, 10) : '',
-    notices: st.done,
-    next: st.next ? { n: st.next.n, due: st.next.due, final: !!st.next.final } : null,
+    notices: (k.notices || []).slice(),
     closed: info.closed || ''
   };
+}
+
+/** For him only (sheet menu): every date worked on a case and its notice status, to answer a complainant's request. */
+function caseReport_(query, ctx) {
+  ctx = ctx || dayCtx_();
+  var q = String(query || '').trim();
+  var code = normCode_(q);
+  var hit = ctx.caseList.filter(function (c) {
+    return (code && c.code === code) || (q && (c.caseNo === q || c.folder === q));
+  })[0];
+  var folder = hit ? hit.folder : (ctx.cases[q] ? q : '');
+  if (!folder) return null;
+  var k = ctx.cases[folder] || { start: '', type: '', workDates: {}, last: '', notices: [] };
+  var info = ctx.caseInfo[folder] || {};
+  var today = Core.toBkkIso(new Date()).slice(0, 10);
+  var st = k.start ? Core.noticeStatus(k.start, k.notices, today, info.closed) : { next: null };
+  return { folder: folder, caseNo: info.caseNo || '', code: info.code || '', start: k.start, type: k.type,
+    workDates: Object.keys(k.workDates || {}).sort(), notices: k.notices || [], closed: info.closed || '',
+    next: st.next, lastWorked: k.last ? k.last.slice(0, 10) : '' };
 }
 
 function linePost_(body) {
@@ -169,9 +187,9 @@ function linePost_(body) {
       cache.put(fk, String(fails + 1), 3600);
       throw new Error('ไม่พบรหัสนี้ กรุณาตรวจสอบรหัสจากพนักงานสอบสวน');
     }
-    var mine = linkedFolders_(who);
+    var mine = linkedFolders_(who, ctx);
     if (mine.length >= 20) throw new Error('ติดตามได้สูงสุด 20 คดี');
-    if (mine.indexOf(hit.folder) < 0) sh.appendRow([who, cellSafe_(hit.folder), Core.toBkkIso(new Date())]);
+    if (mine.indexOf(hit.folder) < 0) sh.appendRow([who, cellSafe_(hit.folder), Core.toBkkIso(new Date()), hit.code]);
   } else if (body.action === 'line_unlink') {
     var drop = normCode_(body.code);
     var target = drop && ctx.caseList.filter(function (c) { return c.code === drop; })[0];
@@ -184,7 +202,7 @@ function linePost_(body) {
   } else if (body.action !== 'line_cases') {
     throw new Error('Unknown request');
   }
-  return { ok: true, cases: linkedFolders_(who).map(function (f) { return publicCase_(ctx, f); }) };
+  return { ok: true, cases: linkedFolders_(who, ctx).map(function (f) { return publicCase_(ctx, f); }) };
 }
 
 /* ---------- sheet menu: LINE setup ---------- */

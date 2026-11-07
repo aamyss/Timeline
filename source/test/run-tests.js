@@ -565,8 +565,12 @@ test('v10 LINE: complainant links a case with its code and sees dates only', () 
   assert.strictEqual(r.ok, true, r.error);
   assert.strictEqual(r.cases.length, 1);
   const c = r.cases[0];
-  assert.deepStrictEqual([c.caseNo, c.type, c.reported, c.notices, c.next.n], ['345/2569', 'ลักทรัพย์', '2026-10-20', ['2026-11-04'], 2]);
-  assert.ok(c.workDates.includes('2026-11-04'));
+  assert.deepStrictEqual([c.caseNo, c.type, c.reported, c.notices], ['345/2569', 'ลักทรัพย์', '2026-10-20', ['2026-11-04']]);
+  assert.ok(!('workDates' in c) && !('next' in c), 'work dates and next due date are not sent to LINE');
+  const rep = run("caseReport_('" + code + "')");
+  assert.ok(rep.workDates.includes('2026-11-04') && rep.next.n === 2, 'he can still pull them for a complainant');
+  assert.strictEqual(run("caseReport_('345/2569')").folder, rep.folder);
+  assert.strictEqual(run("caseReport_('nope')"), null);
   assert.ok(!/นายตัวอย่าง|docx|T\d\d:/.test(JSON.stringify(r)), 'no names, file names or times of day');
   const links = W.ss.getSheetByName('Links');
   assert.ok(!JSON.stringify(links.data).includes('Ugood-A'), 'raw LINE user ID never stored');
@@ -575,7 +579,15 @@ test('v10 LINE: complainant links a case with its code and sees dates only', () 
   const before = calls;
   post({ action: 'line_cases', idToken: 'good-A' });
   assert.strictEqual(calls, before, 'verified token cached for a few minutes');
-  assert.strictEqual(post({ action: 'line_unlink', idToken: 'good-A', code }).cases.length, 0);
+  // a new code (cell cleared, refilled by the hourly run) drops the old followers
+  const cs = run('readCases_()').find(x => x.caseNo === '345/2569');
+  W.ss.getSheetByName('Cases').getRange(cs.row, 5).setValue('');
+  run('collectAll()');
+  const code2 = run('readCases_()').find(x => x.caseNo === '345/2569').code;
+  assert.ok(code2 && code2 !== code);
+  assert.strictEqual(post({ action: 'line_cases', idToken: 'good-A' }).cases.length, 0, 'old code no longer works');
+  assert.strictEqual(post({ action: 'line_link', idToken: 'good-A', code: code2 }).cases.length, 1);
+  assert.strictEqual(post({ action: 'line_unlink', idToken: 'good-A', code: code2 }).cases.length, 0);
   for (let i = 0; i < 5; i++) post({ action: 'line_link', idToken: 'good-C', code: 'AAAA-AAA' + i });
   r = post({ action: 'line_link', idToken: 'good-C', code });
   assert.ok(!r.ok && /1 ชั่วโมง/.test(r.error), 'locked out after 5 wrong codes');

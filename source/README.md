@@ -84,7 +84,9 @@ End earlier than start means an overnight shift. Until a month's roster is enter
 The **Cases** tab fills itself every hour: one row per Inquiry Copilot case folder, each with a `line_code`.
 - `case_no`: type the real case number, e.g. `2026-11-05_1510-ลักสายไฟ_โรงงาน_บริษัทตัวอย่าง` → `456/2569`. The app and the LINE page then show the number instead of the folder name.
 - `closed`: the date the file went to the prosecutor or the case ended (e.g. `2026-12-01`). The last progress notice is due that day.
-- `line_code`: give it only to the complainant of that case (for example, write it on the progress-notice letter).
+- `line_code`: give it only to the complainant of that case (for example, write it on the progress-notice letter). If a code leaks, clear the cell: the next hourly run makes a new code and everyone who followed with the old one loses access.
+
+When a complainant asks for the dates you worked on their case or the next notice date, use **Work timeline → Case report**: enter their code or case number and copy the Thai text it gives you.
 
 ## Summary card and progress notices (v9)
 The top of the app and of the nightly email shows a summary of the day: shift, on-duty coverage (shift time minus gaps), work outside shifts (each record counts as 15 minutes; records close together join up; notes and place visits count their full span), cases, documents created/edited/deleted (not photos or Inquiry Copilot's own files), photos (and how many carry a location), places and calendar items.
@@ -100,9 +102,11 @@ A notice counts as sent when a file whose name contains a `NOTICE_WORDS` word ap
 ## LINE page (v10)
 `line/index.html` in the GitHub repo is a LIFF page for the work LINE OA, with two tabs:
 - **ผลงาน**: totals only (on-duty hours, work outside shifts, cases, documents) for this month, last month and since the roster began. Off until you switch it on (ask your ผกก. first).
-- **คดีของฉัน**: a complainant enters the case's `line_code` once. They then see the dates you worked on the case, the progress-notice dates and the next due date. No file names, names of people or times of day. Their LINE sign-in is checked with LINE's server; only a one-way hash of their LINE ID is kept (Links tab). Five wrong codes lock them out for an hour.
+- **คดีของฉัน**: a complainant enters the case's `line_code` once. They then see the case number and type, the complaint date, the progress notices sent, the date the file went to the prosecutor and the last day worked. Not the list of work dates or the next due date (you give those on request with **Case report**), and never file names, names of people or times of day. Their LINE sign-in is checked with LINE's server; only a one-way hash of their LINE ID is kept (Links tab). Five wrong codes lock them out for an hour.
 
 It sends no LINE messages, so it uses none of the free plan's 300 pushes.
+
+Policy pages for the LINE Login channel (Basic settings): Privacy policy URL `https://aamyss.github.io/Timeline/line/privacy.html`, Terms of use URL `https://aamyss.github.io/Timeline/line/terms.html`.
 
 Setup:
 1. [LINE Developers console](https://developers.line.biz/console/) → **Create a new provider**. The work OA has no provider yet (an OA gets one only when its Messaging API is switched on), so this new provider is the one it will join later.
@@ -138,6 +142,7 @@ After updating the script, run **Work timeline → Set up** once more. It adds t
 - **Verify log**: recompute every hash and compare with the Seals tab.
 - **Update Cases tab**: add new case folders now (it also runs every hour).
 - **LINE page setup**: LIFF ID, LINE Login channel ID, public totals on/off.
+- **Case report (for a complainant)**: work dates, notices and next due date for one case, as Thai text to copy.
 
 ## Files
 | File | What it does |
