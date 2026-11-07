@@ -107,7 +107,7 @@ A notice counts as sent when a file whose name contains a `NOTICE_WORDS` word ap
 
 ## LINE page (v10)
 `line/index.html` in the GitHub repo is a LIFF page for the work LINE OA, with two tabs:
-- **งานที่ได้ทำไปแล้ว** (was ผลงาน): totals only (on-duty hours, work outside shifts, number of cases, number of documents): this month, any other month from a drop-down, and all time since the roster began. Off until you switch it on.
+- **งานที่ได้ทำไปแล้ว** (was ผลงาน): totals only — on-duty hours, work outside shifts, number of Inquiry Copilot cases worked on, and number of documents that appeared in those case folders (each file once even if it exists in two places; not photos, not Inquiry Copilot's own files or cover sheets): this month, any other month from a drop-down, and all time since the roster began. Off until you switch it on.
 - **ติดตามคดีของคุณ** (was คดีของฉัน): a complainant enters the case's `line_code` once. They then see the case number and type, the complaint date, the progress notices sent, the date the file went to the prosecutor and the status you set in the Cases tab. Not the list of work dates or the next due date (you give those on request with **Case report**), and never file names, names of people or times of day. Their LINE sign-in is checked with LINE's server; only a one-way hash of their LINE ID is kept (Links tab). Five wrong codes lock them out for an hour.
 
 It sends no LINE messages, so it uses none of the free plan's 300 pushes.

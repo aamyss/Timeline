@@ -356,6 +356,22 @@ test('status rules: Inquiry Copilot folder and file names -> case steps; latest 
   assert.ok(Core.STATUS_RULES.every(r => !/นาย|นาง|น\.ส\./.test(r.text)), 'no names in status texts');
 });
 
+
+test('public documents: case-folder documents only, each copy once, no cover sheets or photos', () => {
+  const r = (t, path) => ({ kind: 'file_created', event_time: t, detail: JSON.stringify({ path }) });
+  const F = 'แฟ้มคดี', C = '2026-11-05_1510-ลัก_ก';
+  const docs = Core.collectCases ? Core.caseDocuments([
+    r('2026-11-05T16:00:00+07:00', 'IC/p/' + F + '/' + C + '/หมายเรียกพยานเอกสาร/x_A/หมายเรียกพยานเอกสาร-x.docx'),
+    r('2026-11-07T10:00:00+07:00', '#Police/Inquiry Copilot App/p/' + F + '/' + C + '/หมายเรียกพยานเอกสาร/x_A/หมายเรียกพยานเอกสาร-x.docx'),
+    r('2026-11-05T16:00:00+07:00', 'IC/p/' + F + '/' + C + '/เอกสาร/ใบปะหน้าสำหรับจัดเก็บ/แผ่นปะหน้าสำนวน.docx'),
+    r('2026-11-05T16:00:00+07:00', 'IC/p/' + F + '/' + C + '/ฝากไฟล์/ตรวจที่เกิดเหตุ/a.heic'),
+    r('2026-11-05T16:00:00+07:00', 'IC/p/' + F + '/' + C + '/__res__/session.json'),
+    r('2026-11-05T16:00:00+07:00', '#Police/#Donnie/ตัวอย่าง/คู่มือ.pdf')
+  ], [F]) : {};
+  assert.deepStrictEqual(Object.keys(docs).length, 1);
+  assert.strictEqual(Object.values(docs)[0], '2026-11-05T16:00:00+07:00', 'earliest copy');
+});
+
 /* ===================== Whole script on fakes ===================== */
 console.log('Script (fakes)');
 
@@ -630,6 +646,8 @@ test('v10 LINE: config and totals are public but totals stay off until switched 
   assert.strictEqual(st.months[0].label, st.current, 'newest month first');
   assert.ok(all.onDutyHours > 0 && all.documents >= 1 && all.cases >= 1, JSON.stringify(all));
   assert.ok(!/ลักทรัพย์|นายตัวอย่าง|docx|345/.test(JSON.stringify(st)), 'totals only: no names, files or case numbers');
+  const cases = run('Object.keys(dayCtx_().cases).filter(function(f){return !dayCtx_().cases[f].deleted}).length');
+  assert.ok(all.cases <= cases, 'cases = Inquiry Copilot cases only (' + all.cases + ' of ' + cases + ')');
 });
 
 test('v10 LINE: complainant links a case with its code and sees dates only', () => {

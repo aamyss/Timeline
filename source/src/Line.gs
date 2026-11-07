@@ -38,16 +38,20 @@ function lineGet_(api) {
   if (api === 'stats') {
     if (!lc.publicStats) return { ok: true, off: true };
     var cache = CacheService.getScriptCache();
-    var hit = cache.get('PUBLIC_STATS_V2');
+    var hit = cache.get('PUBLIC_STATS_V3');
     if (hit) return JSON.parse(hit);
     var out = publicStats_();
-    cache.put('PUBLIC_STATS_V2', JSON.stringify(out), 3 * 3600);
+    cache.put('PUBLIC_STATS_V3', JSON.stringify(out), 3 * 3600);
     return out;
   }
   return { ok: false, error: 'Unknown request' };
 }
 
-/** Totals for every month that has a roster (newest first) and for all of them together. */
+/**
+ * Totals for every month that has a roster (newest first) and for all of them together.
+ * Hours come from the day summaries. Cases = Inquiry Copilot cases worked on in the period; documents = documents
+ * that first appeared in those case folders in the period (Core.caseDocuments). Counts only, never names.
+ */
 function publicStats_(ctx) {
   ctx = ctx || dayCtx_();
   var today = Core.toBkkIso(new Date()).slice(0, 10);
@@ -58,11 +62,21 @@ function publicStats_(ctx) {
     per[m] = blank();
     for (var d = m + '-01'; d.slice(0, 7) === m && d <= today; d = Core.addDays(d, 1)) {
       var s = dayData_(d, ctx, true).summary;
-      [per[m], all].forEach(function (b) {
-        b.onMin += s.elapsedMin; b.outMin += s.outsideMin; b.docs += s.created;
-        s.cases.forEach(function (c) { b.cases[c] = true; });
-      });
+      [per[m], all].forEach(function (b) { b.onMin += s.elapsedMin; b.outMin += s.outsideMin; });
     }
+  });
+  Object.keys(ctx.cases).forEach(function (f) {
+    if (ctx.cases[f].deleted) return;
+    Object.keys(ctx.cases[f].workDates).forEach(function (d) {
+      if (per[d.slice(0, 7)]) { per[d.slice(0, 7)].cases[f] = true; all.cases[f] = true; }
+    });
+  });
+  var docs = Core.caseDocuments(ctx.allRows, ctx.c.markers);
+  Object.keys(docs).forEach(function (k) {
+    var f = k.split('/')[0];
+    if (ctx.cases[f] && ctx.cases[f].deleted) return;
+    var m = docs[k].slice(0, 7);
+    if (per[m] && docs[k].slice(0, 10) <= today) { per[m].docs++; all.docs++; }
   });
   var fmt = function (b, label) {
     return { label: label, onDutyHours: Math.round(b.onMin / 6) / 10, outsideHours: Math.round(b.outMin / 6) / 10,
@@ -182,6 +196,6 @@ function saveLineSetup(o) {
   p.setProperty('LINE_LIFF_ID', liff);
   p.setProperty('LINE_CHANNEL_ID', ch);
   p.setProperty('PUBLIC_STATS', o.publicStats ? 'on' : 'off');
-  CacheService.getScriptCache().remove('PUBLIC_STATS_V2');
+  CacheService.getScriptCache().remove('PUBLIC_STATS_V3');
   return lineSetupInfo();
 }

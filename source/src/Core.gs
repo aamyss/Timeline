@@ -623,6 +623,28 @@ var Core = (function () {
 
   function daysBetween(a, b) { return Math.round((bkkDateTime(b) - bkkDateTime(a)) / DAY); }
 
+  /**
+   * Documents in Inquiry Copilot case folders, for the public totals: {key: first time it appeared}.
+   * key = case folder + path below it, so the same file in two places (old OneDrive copy and D:) counts once.
+   * Not counted: photos, Inquiry Copilot's own files (__res__, __temp__, ห้ามลบ) and its automatic cover sheets.
+   */
+  function caseDocuments(rows, markers) {
+    var docs = {};
+    rows.forEach(function (r) {
+      if (r.kind !== 'file_created') return;
+      var d = {};
+      try { d = JSON.parse(r.detail || '{}'); } catch (e) { return; }
+      var folder = d.path ? caseFolderOf(d.path, markers) : '';
+      if (!folder || !caseFolderInfo(folder)) return;
+      var rel = d.path.slice(d.path.indexOf('/' + folder + '/') + folder.length + 2);
+      if (d.path.indexOf('/' + folder + '/') < 0 || !isDocPath(rel)) return;
+      if (/^(แบบบันทึกการตรวจสำนวน|แผ่นปะหน้าสำนวน)/.test(rel.split('/').pop())) return;
+      var key = folder + '/' + rel;
+      if (!docs[key] || r.event_time < docs[key]) docs[key] = r.event_time;
+    });
+    return docs;
+  }
+
   /** Path of a row -> the case folder it sits in (the segment after a marker), or ''. */
   function caseFolderOf(path, markers) {
     var parts = String(path || '').split('/');
@@ -733,7 +755,7 @@ var Core = (function () {
     mergeSpans: mergeSpans, subtractSpans: subtractSpans, isDocPath: isDocPath, fmtDur: fmtDur, fmtDay: fmtDay,
     daySummary: daySummary, summaryLines: summaryLines, caseFolderInfo: caseFolderInfo, caseFolderOf: caseFolderOf,
     addMonths: addMonths, daysBetween: daysBetween, collectCases: collectCases, noticeStatus: noticeStatus,
-    STATUS_RULES: STATUS_RULES, MANUAL_STATUSES: MANUAL_STATUSES, START_STATUS: START_STATUS, matchSteps: matchSteps, latestStep: latestStep
+    STATUS_RULES: STATUS_RULES, MANUAL_STATUSES: MANUAL_STATUSES, caseDocuments: caseDocuments, START_STATUS: START_STATUS, matchSteps: matchSteps, latestStep: latestStep
   };
 })();
 
