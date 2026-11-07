@@ -6,7 +6,7 @@ Usage: python3 roster_highlight.py photo.jpg table.json out_dir/
 table.json:
 {
   "title": "เวร พ.ย. 2569",
-  "people": {"TD": "ร.ต.ท.ธนเดช", ...},          # code -> name as printed
+  "people": {"AB": "ร.ต.ท.สมชาย", ...},          # code -> name as printed
   "columns": ["รับแจ้งความ", "รับแจ้งความ", "รับแจ้งความ", "ฝากขัง", "ออนไลน์"],
   "rows": [["DN","CH","JS","TW","SK"], ...]        # one list per day, "" = empty cell
 }
