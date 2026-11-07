@@ -84,6 +84,7 @@ End earlier than start means an overnight shift. Until a month's roster is enter
 The **Cases** tab fills itself every hour: one row per Inquiry Copilot case folder, each with a `line_code`.
 - `case_no`: type the real case number, e.g. `2026-11-05_1510-ลักสายไฟ_โรงงาน_บริษัทตัวอย่าง` → `456/2569`. The app and the LINE page then show the number instead of the folder name.
 - `closed`: the date the file went to the prosecutor or the case ended (e.g. `2026-12-01`). The last progress notice is due that day.
+- `status`: what's happening in the case now (pick from the list, e.g. ส่งหมายเรียก, รอเอกสารจากธนาคาร, or type your own). The complainant sees it on the LINE page; `status_at` fills itself with the date you changed it. Keep it short and free of names.
 - `line_code`: give it only to the complainant of that case (for example, write it on the progress-notice letter). If a code leaks, clear the cell: the next hourly run makes a new code and everyone who followed with the old one loses access.
 
 When a complainant asks for the dates you worked on their case or the next notice date, use **Work timeline → Case report**: enter their code or case number and copy the Thai text it gives you.
@@ -102,7 +103,7 @@ A notice counts as sent when a file whose name contains a `NOTICE_WORDS` word ap
 ## LINE page (v10)
 `line/index.html` in the GitHub repo is a LIFF page for the work LINE OA, with two tabs:
 - **ผลงาน**: totals only (on-duty hours, work outside shifts, cases, documents) for this month, last month and since the roster began. Off until you switch it on (ask your ผกก. first).
-- **คดีของฉัน**: a complainant enters the case's `line_code` once. They then see the case number and type, the complaint date, the progress notices sent, the date the file went to the prosecutor and the last day worked. Not the list of work dates or the next due date (you give those on request with **Case report**), and never file names, names of people or times of day. Their LINE sign-in is checked with LINE's server; only a one-way hash of their LINE ID is kept (Links tab). Five wrong codes lock them out for an hour.
+- **คดีของฉัน**: a complainant enters the case's `line_code` once. They then see the case number and type, the complaint date, the progress notices sent, the date the file went to the prosecutor and the status you set in the Cases tab. Not the list of work dates or the next due date (you give those on request with **Case report**), and never file names, names of people or times of day. Their LINE sign-in is checked with LINE's server; only a one-way hash of their LINE ID is kept (Links tab). Five wrong codes lock them out for an hour.
 
 It sends no LINE messages, so it uses none of the free plan's 300 pushes.
 

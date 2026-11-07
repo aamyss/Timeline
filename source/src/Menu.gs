@@ -19,6 +19,20 @@ function onOpen() {
 
 function alert_(msg) { SpreadsheetApp.getUi().alert(msg); }
 
+/** Simple trigger: when a case's status changes in the Cases tab, stamp the date next to it. */
+function onEdit(e) {
+  if (!e || !e.range) return;
+  var sh = e.range.getSheet();
+  if (sh.getName() !== 'Cases') return;
+  var c0 = e.range.getColumn(), c1 = c0 + e.range.getNumColumns() - 1;
+  if (c0 > 6 || c1 < 6) return;
+  var r0 = Math.max(2, e.range.getRow()), n = e.range.getRow() + e.range.getNumRows() - r0;
+  if (n < 1) return;
+  var today = Core.toBkkIso(new Date()).slice(0, 10);
+  var vals = sh.getRange(r0, 6, n, 1).getValues().map(function (r) { return [String(r[0]).trim() ? today : '']; });
+  sh.getRange(r0, 7, n, 1).setNumberFormat('@').setValues(vals);
+}
+
 function menuSetup() { alert_(setup()); }
 
 function menuCollect() { alert_(collectAll() || 'Done.'); }
@@ -50,6 +64,7 @@ function menuCaseReport() {
     'แจ้งความคืบหน้าแล้ว: ' + (c.notices.length ? c.notices.map(function (d, i) { return 'ครั้งที่ ' + (i + 1) + ' ' + th(d); }).join(', ') : 'ยังไม่มี'),
     'แจ้งครั้งถัดไป: ' + (!c.next ? '—' : c.next.due ? 'ครั้งที่ ' + c.next.n + ' ภายใน ' + th(c.next.due) : 'ครั้งที่ ' + c.next.n + ' เมื่อส่งสำนวนให้พนักงานอัยการ'),
     c.closed ? 'ส่งสำนวน: ' + th(c.closed) : '',
+    c.status ? 'สถานะ: ' + c.status + (c.statusAt ? ' (' + th(c.statusAt) + ')' : '') : '',
     'วันที่ดำเนินการในคดี (' + c.workDates.length + ' วัน): ' + c.workDates.map(th).join(', ')
   ].filter(String).join('\n');
   var html = HtmlService.createHtmlOutput('<div style="font-family:sans-serif;font-size:13px">' +

@@ -566,7 +566,15 @@ test('v10 LINE: complainant links a case with its code and sees dates only', () 
   assert.strictEqual(r.cases.length, 1);
   const c = r.cases[0];
   assert.deepStrictEqual([c.caseNo, c.type, c.reported, c.notices], ['345/2569', 'ลักทรัพย์', '2026-10-20', ['2026-11-04']]);
-  assert.ok(!('workDates' in c) && !('next' in c), 'work dates and next due date are not sent to LINE');
+  assert.ok(!('workDates' in c) && !('next' in c) && !('lastWorked' in c), 'work dates, next due date and last day worked are not sent to LINE');
+  assert.strictEqual(c.status, '', 'no status yet');
+  const cr = run('readCases_()').find(x => x.caseNo === '345/2569');
+  const cs6 = W.ss.getSheetByName('Cases').getRange(cr.row, 6);
+  cs6.setValue('รอเอกสารจากธนาคาร');
+  W.env.__ev = { range: cs6 }; run('onEdit(__ev)');
+  const c2 = post({ action: 'line_cases', idToken: 'good-A' }).cases[0];
+  assert.strictEqual(c2.status, 'รอเอกสารจากธนาคาร');
+  assert.strictEqual(c2.statusAt, run('Core.toBkkIso(new Date()).slice(0,10)'), 'date stamped by onEdit');
   const rep = run("caseReport_('" + code + "')");
   assert.ok(rep.workDates.includes('2026-11-04') && rep.next.n === 2, 'he can still pull them for a complainant');
   assert.strictEqual(run("caseReport_('345/2569')").folder, rep.folder);

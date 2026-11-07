@@ -37,7 +37,8 @@ function makeEnv() {
     }
     setValue(x) { return this.setValues([[x]]); }
     clearContent() { for (let i = 0; i < this.nr; i++) { const row = this.sh.data[this.r - 1 + i]; if (row) for (let j = 0; j < this.nc; j++) row[this.c - 1 + j] = ''; } return this; }
-    setNumberFormat() { return this; } setFontWeight() { return this; } setNote() { return this; }
+    setNumberFormat() { return this; } setFontWeight() { return this; } setNote() { return this; } setDataValidation() { return this; }
+    getSheet() { return this.sh; } getRow() { return this.r; } getColumn() { return this.c; } getNumRows() { return this.nr; } getNumColumns() { return this.nc; }
   }
   class Sheet {
     constructor(name) { this.name = name; this.data = []; }
@@ -66,7 +67,8 @@ function makeEnv() {
 
   const env = {
     console,
-    SpreadsheetApp: { getActiveSpreadsheet: () => ss, openById: () => ss, flush() {}, getUi: () => ({}) },
+    SpreadsheetApp: { getActiveSpreadsheet: () => ss, openById: () => ss, flush() {}, getUi: () => ({}),
+      newDataValidation: () => { const v = { requireValueInList: () => v, setAllowInvalid: () => v, build: () => ({}) }; return v; } },
     PropertiesService: { getScriptProperties: () => ({
       getProperty: k => (k in props ? props[k] : null), setProperty: (k, v) => { props[k] = String(v); },
       setProperties: o => Object.keys(o).forEach(k => { props[k] = String(o[k]); }),

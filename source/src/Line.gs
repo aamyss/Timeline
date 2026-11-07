@@ -6,7 +6,7 @@
  * Signed in to LINE: POST {action: line_cases | line_link | line_unlink, idToken, code?}
  *   The LINE ID token is checked with LINE's server; only a hash of the LINE user ID is stored.
  *   A complainant sees, for the cases they linked with a code: case number and type, complaint date,
- *   progress notices sent, the closed date and the last day worked. Never file names, names of people,
+ *   progress notices sent, the closed date and the status he typed in the Cases tab. Never file names, names of people,
  *   times of day, the list of work dates or the next due date (he gives those on request: menu Case report).
  */
 var CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';   // no 0/O, 1/I/L
@@ -35,7 +35,7 @@ function syncCasesTab_(ctx) {
     if (!c.code && Core.caseFolderInfo(c.folder)) sh.getRange(c.row, 5).setNumberFormat('@').setValue(newCaseCode_());
   });
   var add = Object.keys(ctx.cases).sort().filter(function (f) { return !have[f] && !ctx.cases[f].deleted; })
-    .map(function (f) { return [f, '', '', '', newCaseCode_()]; });
+    .map(function (f) { return [f, '', '', '', newCaseCode_(), '', '']; });
   if (add.length) {
     sh.getRange(sh.getLastRow() + 1, 1, add.length, CASE_HEADERS.length).setNumberFormat('@').setValues(add.map(function (r) {
       return r.map(cellSafe_);
@@ -138,16 +138,18 @@ function linkedFolders_(who, ctx) {
   return out;
 }
 
-/** What a complainant may see about one case (no work dates, no next due date; he gives those on request). */
+/** What a complainant may see about one case: no work dates, no next due date (he gives those on request), and the
+ *  status he typed in the Cases tab instead of the last day worked. */
 function publicCase_(ctx, folder) {
-  var k = ctx.cases[folder] || { start: '', type: '', last: '', notices: [] };
+  var k = ctx.cases[folder] || { start: '', type: '', notices: [] };
   var info = ctx.caseInfo[folder] || {};
   return {
     code: info.code || '',
     caseNo: info.caseNo || '',
     type: k.type || (Core.caseFolderInfo(folder) || {}).type || '',
     reported: k.start,
-    lastWorked: k.last ? k.last.slice(0, 10) : '',
+    status: info.status || '',
+    statusAt: info.status ? info.statusAt || '' : '',
     notices: (k.notices || []).slice(),
     closed: info.closed || ''
   };
@@ -169,7 +171,7 @@ function caseReport_(query, ctx) {
   var st = k.start ? Core.noticeStatus(k.start, k.notices, today, info.closed) : { next: null };
   return { folder: folder, caseNo: info.caseNo || '', code: info.code || '', start: k.start, type: k.type,
     workDates: Object.keys(k.workDates || {}).sort(), notices: k.notices || [], closed: info.closed || '',
-    next: st.next, lastWorked: k.last ? k.last.slice(0, 10) : '' };
+    next: st.next, lastWorked: k.last ? k.last.slice(0, 10) : '', status: info.status || '', statusAt: info.statusAt || '' };
 }
 
 function linePost_(body) {

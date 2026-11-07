@@ -145,7 +145,8 @@
         '<div class="row"><div class="k">รับแจ้งความ</div><div>' + esc(thDate(c.reported)) + '</div></div>' +
         '<div class="row"><div class="k">แจ้งความคืบหน้าแล้ว</div><div>' + (c.notices.length ? c.notices.map(function (d, i) { return 'ครั้งที่ ' + (i + 1) + ' · ' + esc(thDate(d)); }).join('<br>') : 'ยังไม่มี') + '</div></div>' +
         (c.closed ? '<div class="row"><div class="k">ส่งสำนวน</div><div>' + esc(thDate(c.closed)) + '</div></div>' : '') +
-        '<div class="row"><div class="k">ดำเนินการล่าสุด</div><div>' + esc(thDate(c.lastWorked) || '—') + '</div></div>' +
+        (c.status ? '<div class="row"><div class="k">สถานะคดี</div><div>' + esc(c.status) +
+          (c.statusAt ? '<div class="muted">อัปเดต ' + esc(thDate(c.statusAt)) + '</div>' : '') + '</div></div>' : '') +
         '<div style="margin-top:8px;text-align:right"><button class="link" data-unlink="' + esc(c.code) + '">เลิกติดตาม</button></div></div>';
     }).join('');
   }

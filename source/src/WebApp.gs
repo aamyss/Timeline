@@ -132,22 +132,31 @@ function readRoster_() {
   }).filter(function (r) { return /^\d{4}-\d{2}-\d{2}$/.test(r.date) && r.start && r.end; });
 }
 
-var CASE_HEADERS = ['case_folder', 'case_no', 'note', 'closed', 'line_code'];
+var CASE_HEADERS = ['case_folder', 'case_no', 'note', 'closed', 'line_code', 'status', 'status_at'];
+// Suggestions for the status column (shown to the complainant); any other text is allowed too.
+var CASE_STATUSES = ['สอบปากคำผู้เสียหายแล้ว', 'รวบรวมพยานหลักฐาน', 'ส่งหมายเรียก', 'รอเอกสารจากธนาคาร', 'รอผลตรวจพิสูจน์',
+  'ขอออกหมายจับ', 'สอบปากคำผู้ต้องหาแล้ว', 'สรุปสำนวน', 'ส่งสำนวนให้พนักงานอัยการแล้ว'];
 
 /** Cases tab rows: {row, folder, caseNo, note, closed, code}. Adds the v9 columns to an older tab. */
 function readCases_() {
   var sh = ss_().getSheetByName('Cases');
   if (!sh) return [];
   var head = sh.getRange(1, 1, 1, CASE_HEADERS.length).getValues()[0];
-  if (String(head[3]) !== 'closed' || String(head[4]) !== 'line_code') {
+  if (String(head[3]) !== 'closed' || String(head[4]) !== 'line_code' || String(head[5]) !== 'status' || String(head[6]) !== 'status_at') {
     sh.getRange(1, 1, 1, CASE_HEADERS.length).setValues([CASE_HEADERS]).setFontWeight('bold');
     sh.getRange(1, 4).setNote('closed = date the file went to the prosecutor or the case ended (2026-12-01). The last progress notice is due then.');
-    sh.getRange(1, 5).setNote('line_code = the code a complainant enters in the LINE page to follow this case. Made automatically; give it only to them.');
+    sh.getRange(1, 5).setNote('line_code = the code a complainant enters in the LINE page to follow this case. Made automatically; give it only to them. Clear it to make a new one (old followers lose access).');
+    sh.getRange(1, 6).setNote('status = what is happening in the case now, shown to the complainant on the LINE page (e.g. ส่งหมายเรียก). Pick from the list or type your own.');
+    sh.getRange(1, 7).setNote('status_at = filled automatically when you change status.');
+    sh.getRange(2, 6, sh.getMaxRows() - 1, 1).setDataValidation(SpreadsheetApp.newDataValidation()
+      .requireValueInList(CASE_STATUSES, true).setAllowInvalid(true).build());
+    sh.getRange(2, 7, sh.getMaxRows() - 1, 1).setNumberFormat('@');
   }
   if (sh.getLastRow() < 2) return [];
   return sh.getRange(2, 1, sh.getLastRow() - 1, CASE_HEADERS.length).getValues().map(function (r, i) {
     return { row: i + 2, folder: String(r[0]).trim(), caseNo: String(r[1]).trim(), note: String(r[2]).trim(),
-      closed: fmtCell_(r[3], 'yyyy-MM-dd'), code: String(r[4]).trim().toUpperCase() };
+      closed: fmtCell_(r[3], 'yyyy-MM-dd'), code: String(r[4]).trim().toUpperCase(),
+      status: String(r[5]).trim().slice(0, 120), statusAt: fmtCell_(r[6], 'yyyy-MM-dd').slice(0, 10) };
   }).filter(function (c) { return c.folder; });
 }
 
