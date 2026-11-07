@@ -7,33 +7,39 @@
 <meta name="robots" content="noindex">
 <title>งานที่ได้ทำไปแล้ว · ติดตามคดีของคุณ</title>
 <style>
-  :root { --bg:#f4f5f4; --fg:#1f1f1f; --muted:#6b6b6b; --line:#e3e3e0; --card:#fff; --accent:#06c755; --accentfg:#fff;
+  @font-face { font-family:'Sarabun'; font-weight:400; font-display:swap; src:url(fonts/sarabun-thai-400-normal.woff2) format('woff2'); unicode-range:U+0E01-0E5B,U+200C-200D,U+25CC; }
+  @font-face { font-family:'Sarabun'; font-weight:400; font-display:swap; src:url(fonts/sarabun-latin-400-normal.woff2) format('woff2'); unicode-range:U+0000-00FF,U+2000-206F; }
+  @font-face { font-family:'Sarabun'; font-weight:600; font-display:swap; src:url(fonts/sarabun-thai-600-normal.woff2) format('woff2'); unicode-range:U+0E01-0E5B,U+200C-200D,U+25CC; }
+  @font-face { font-family:'Sarabun'; font-weight:600; font-display:swap; src:url(fonts/sarabun-latin-600-normal.woff2) format('woff2'); unicode-range:U+0000-00FF,U+2000-206F; }
+  @font-face { font-family:'Sarabun'; font-weight:700; font-display:swap; src:url(fonts/sarabun-thai-700-normal.woff2) format('woff2'); unicode-range:U+0E01-0E5B,U+200C-200D,U+25CC; }
+  @font-face { font-family:'Sarabun'; font-weight:700; font-display:swap; src:url(fonts/sarabun-latin-700-normal.woff2) format('woff2'); unicode-range:U+0000-00FF,U+2000-206F; }
+  :root { --bg:#f4f5f4; --fg:#1f1f1f; --muted:#555; --line:#e3e3e0; --card:#fff; --accent:#06c755; --accentfg:#fff;
     --amber:#8a5300; --amberbg:#fdf0d8; --red:#a32d2d; --chip:#eef0ee; }
   @media (prefers-color-scheme: dark) {
-    :root { --bg:#151615; --fg:#ecebe6; --muted:#a3a29b; --line:#33332f; --card:#222321; --amber:#f2c06b; --amberbg:#43300f; --red:#f09595; --chip:#2d2e2c; }
+    :root { --bg:#151615; --fg:#ecebe6; --muted:#bcbbb4; --line:#33332f; --card:#222321; --amber:#f2c06b; --amberbg:#43300f; --red:#f09595; --chip:#2d2e2c; }
   }
   * { box-sizing:border-box; }
-  body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,"Noto Sans Thai",sans-serif; background:var(--bg); color:var(--fg); font-size:15px; line-height:1.5; -webkit-text-size-adjust:100%; }
+  body { margin:0; font-family:"Sarabun",-apple-system,"Segoe UI",Roboto,"Noto Sans Thai",sans-serif; background:var(--bg); color:var(--fg); font-size:16px; line-height:1.55; -webkit-text-size-adjust:100%; }
   .wrap { max-width:560px; margin:0 auto; padding:calc(10px + env(safe-area-inset-top)) 14px calc(32px + env(safe-area-inset-bottom)); }
   .tabs { display:grid; grid-template-columns:1fr 1fr; background:var(--card); border-radius:12px; padding:4px; gap:4px; position:sticky; top:6px; z-index:2; box-shadow:0 1px 3px rgba(0,0,0,.06); }
-  .tabs button { border:0; background:none; color:var(--muted); font:inherit; font-size:14px; line-height:1.3; font-weight:600; padding:9px 4px; border-radius:9px; }
+  .tabs button { border:0; background:none; color:var(--muted); font:inherit; font-size:15px; line-height:1.3; font-weight:600; padding:9px 4px; border-radius:9px; }
   .tabs button.on { background:var(--accent); color:var(--accentfg); }
   .card { background:var(--card); border-radius:14px; padding:14px; margin-top:12px; }
   h2 { font-size:16px; margin:0 0 10px; }
   .nums { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
   .num b { display:block; font-size:24px; line-height:1.2; font-variant-numeric:tabular-nums; }
-  .num span { font-size:12px; color:var(--muted); }
-  .muted { color:var(--muted); font-size:13px; }
-  .row { display:grid; grid-template-columns:118px minmax(0,1fr); gap:8px; padding:5px 0; border-top:1px solid var(--line); font-size:14px; }
+  .num span { font-size:14px; color:var(--muted); line-height:1.35; display:block; margin-top:2px; }
+  .muted { color:var(--muted); font-size:14px; }
+  .row { display:grid; grid-template-columns:124px minmax(0,1fr); gap:8px; padding:6px 0; border-top:1px solid var(--line); font-size:15px; }
   .row:first-of-type { border-top:0; }
   .row .k { color:var(--muted); }
   input { width:100%; font-size:18px; letter-spacing:2px; text-transform:uppercase; padding:10px; border:1px solid var(--line); border-radius:10px; background:var(--bg); color:var(--fg); font-family:ui-monospace,Menlo,monospace; }
   button.main { width:100%; margin-top:8px; font:inherit; font-weight:600; padding:11px; border:0; border-radius:10px; background:var(--accent); color:var(--accentfg); }
   button.main:disabled { opacity:.6; }
   a { color:var(--muted); }
-  button.link { background:none; border:0; padding:0; color:var(--muted); text-decoration:underline; font:inherit; font-size:12px; }
+  button.link { background:none; border:0; padding:0; color:var(--muted); text-decoration:underline; font:inherit; font-size:14px; }
   select { width:100%; font:inherit; font-size:16px; padding:9px; margin:0 0 12px; border:1px solid var(--line); border-radius:10px; background:var(--bg); color:var(--fg); }
-  .err { color:var(--red); font-size:13px; min-height:18px; margin-top:6px; }
+  .err { color:var(--red); font-size:14px; min-height:18px; margin-top:6px; }
   .hide { display:none; }
 </style>
 </head>
