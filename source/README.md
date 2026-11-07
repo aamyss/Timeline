@@ -42,6 +42,8 @@ No Microsoft setup is needed.
 
 After any later code change: **Deploy → Manage deployments → Edit (pencil) → Version: New version → Deploy**. The URL stays the same.
 
+Update **every** file you were given, not just some: a half-updated project fails in confusing ways (in Nov 2026 an old WebApp.gs made the iPhone get "bad token"). Note what's live and what isn't: the web app (iPhone app, PC reports, check-ins) runs the **deployed version**, while the hourly calendar collection and the nightly seal email run the **saved** code, so saving without deploying gives you a mix.
+
 ### 3. Install the PC reporter
 1. Unzip this project anywhere (right-click → Extract All). Keeping it inside `#Police\Work Timeline` is fine; that folder is never logged.
 2. Open the `pc` folder and double-click **install.cmd**.

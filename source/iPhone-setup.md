@@ -17,7 +17,7 @@ Below, `URL` means your web app URL (ending in `/exec`) and `KEY` means your pho
 2. Add **URL**: `URL?api=duty&t=KEY` (your URL, then `?api=duty&t=`, then your key, with no spaces).
 3. Add **Get Contents of URL**. Leave it as GET.
 4. Add **Get Dictionary Value**: Get **Value** for key `duty` in **Contents of URL**.
-5. Add **If**: **Dictionary Value** **is** `yes`.
+5. Add **If**: **Dictionary Value** **is** `yes`. If the condition list only offers "has any value", first tap the orange **Dictionary Value** pill and set **Type → Text**; then **is** appears. ("has any value" is wrong: it's true for both yes and no.)
 6. Inside the If, add **Get Current Location**.
 7. Inside the If, add **Get Contents of URL**:
    - URL: your `URL` (just the URL, nothing added)
@@ -59,6 +59,8 @@ Shortcuts → **Automation** → **+** → **Time of Day**:
 
 Repeat for **01:00, 02:00 … 23:00** (24 in all). Nothing is sent off duty, so it's fine that they run every day.
 
+Shortcut: one automation can hold all 24 times (add more times to the same Time of Day trigger). That's how it's set up on the current phone ("Auto Shift Log").
+
 ## Automations: places (6)
 
 **+** → **Arrive** → **Location** → search the place → adjust the circle to cover the compound → **Run Immediately** → **Next**:
@@ -71,6 +73,16 @@ Repeat for **01:00, 02:00 … 23:00** (24 in all). Nothing is sent off duty, so 
 | Forensic Police / พิสูจน์หลักฐาน | `พิสูจน์หลักฐาน` |
 
 Then the same three again with **Leave** and **WT Leave**.
+
+**If the location search can't find a place:** the picker only finds what Apple's search finds, plus Home and Work; your saved pins don't appear. Options:
+- Type the coordinates, e.g. `13.843557, 100.492270` (copy exactly; a missing digit moves it hundreds of metres). Search then snaps to the nearest named place (for พิสูจน์หลักฐาน it offers "Nonthaburi Provincial Prison"). That's fine as long as the circle covers the right building: the name Apple shows doesn't matter, because the shortcut sends the Text above and the script places you by GPS.
+- Best: when you're on site, edit the automation and choose **Current Location**, then size the circle. Do the Arrive and Leave automations separately; each keeps its own circle.
+
+**Troubleshooting a shortcut:** temporarily add **Show Result** (showing **Contents of URL**) at the end and run it.
+- `"ok":true,"logged":true`: working.
+- `"ok":false,"error":"bad token"`: the key has a stray space or line break (common when pasting from email), or the deployed script is older than the files (check **WebApp.gs** contains `checkin`; redeploy as a **New version**).
+- An HTML page: wrong URL; it must end in `/exec`.
+Remove **Show Result** afterwards, or every automation will pop it up.
 
 ---
 
