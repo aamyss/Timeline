@@ -105,9 +105,12 @@ A notice counts as sent when a file whose name contains a `NOTICE_WORDS` word ap
 It sends no LINE messages, so it uses none of the free plan's 300 pushes.
 
 Setup:
-1. [LINE Developers console](https://developers.line.biz/console/) → the **same provider** as the work OA → **Create a new channel → LINE Login**. App type: **Web app**. Publish it (status **Published**), or only you can sign in.
+1. [LINE Developers console](https://developers.line.biz/console/) → **Create a new provider**. The work OA has no provider yet (an OA gets one only when its Messaging API is switched on), so this new provider is the one it will join later.
+   - Name it as the public should see it: LINE shows the provider name on the sign-in screen the first time someone opens the page.
+   - In the new provider: **Create a new channel → LINE Login**. App type: **Web app**. Publish it (status **Published**), or only you can sign in.
+   - Later, when you switch on the OA's Messaging API (chat logging, nightly summary), pick **this same provider**. That can't be undone, and only then do the OA and the page share LINE user IDs.
 2. Sheet menu **Work timeline → LINE page setup**: copy the **Endpoint URL**.
-3. In the LINE Login channel → **LIFF → Add**: size **Full**, Endpoint URL from step 2, scope **openid** only, Add friend option (Bot link) **On (Normal)**, Scan QR off. Add.
+3. In the LINE Login channel → **LIFF → Add**: size **Full**, Endpoint URL from step 2, scope **openid** only, Add friend option (Bot link) **Off** for now (it needs the OA in the same provider), Scan QR off. Add.
 4. Back in **LINE page setup**: paste the **LIFF ID** (from the LIFF tab) and the **Channel ID** (Basic settings tab). Save. Leave "Show work totals publicly" unticked until your ผกก. agrees.
 5. LINE Official Account Manager → **Rich menus**: two buttons, action **Link**, using the two links the dialog now shows.
 

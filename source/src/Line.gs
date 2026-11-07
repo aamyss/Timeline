@@ -93,7 +93,8 @@ function publicStats_(ctx) {
   };
   var list = [fmt(per.month, 'month', thisM)];
   if (ctx.months[lastM]) list.push(fmt(per.last, 'last', lastM));
-  list.push(fmt(per.all, 'all', first.slice(0, 7)));
+  // "Since…" only when it covers more than the month cards above it.
+  if (first.slice(0, 7) < (ctx.months[lastM] ? lastM : thisM)) list.push(fmt(per.all, 'all', first.slice(0, 7)));
   return { ok: true, asOf: Core.toBkkIso(new Date()).slice(0, 16), since: first, periods: list };
 }
 

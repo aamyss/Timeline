@@ -540,7 +540,7 @@ test('v10 LINE: config and totals are public but totals stay off until switched 
   assert.throws(() => run("saveLineSetup({liffId:'nope'})"), /LIFF ID/);
   const st = get({ api: 'stats' });
   assert.strictEqual(st.ok, true);
-  const all = st.periods.find(p => p.key === 'all');
+  const all = st.periods.find(p => p.key === 'all') || st.periods.find(p => p.key === 'month');
   assert.ok(all.onDutyHours > 0 && all.documents >= 1 && all.cases >= 1, JSON.stringify(all));
   assert.ok(!/ลักทรัพย์|นายตัวอย่าง|docx|345/.test(JSON.stringify(st)), 'totals only: no names, files or case numbers');
 });
