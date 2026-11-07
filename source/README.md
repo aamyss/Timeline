@@ -115,4 +115,4 @@ After updating the script, run **Work timeline → Set up** once more. It adds t
 | `pc/install.cmd` | Installs the PC reporter |
 | `iPhone-setup.md` | Step-by-step iPhone Shortcuts setup |
 | `pc/reporter.ps1` | The reporter itself (read-only scan, runs hidden via `run-reporter.vbs`) |
-| `test/` | Offline tests: `node test/run-tests.js`, `node test/pc-e2e.js` (needs PowerShell) |
+| `test/` | Offline tests: `node test/run-tests.js` (Apps Script logic), `node test/pc-e2e.js` (needs PowerShell `pwsh`), `node test/app-e2e.js` (iPhone app in a browser; needs Playwright, set `PLAYWRIGHT`/`CHROME` if not on the default path), `node test/email-preview.js` (renders the nightly email to /tmp/email-phone.png) |
