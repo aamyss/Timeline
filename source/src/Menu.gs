@@ -28,8 +28,14 @@ function menuSeal() { alert_(sealYesterday()); }
 function menuVerify() { alert_(verifyLog()); }
 
 function menuCases() {
-  var n = syncCasesTab_();
-  alert_(n ? n + ' case' + (n > 1 ? 's' : '') + ' added to the Cases tab, each with a LINE code.' : 'The Cases tab is up to date.');
+  var ctx = dayCtx_();
+  var n = syncCasesTab_(ctx);
+  var all = Object.keys(ctx.cases);
+  var gone = all.filter(function (f) { return ctx.cases[f].deleted; });
+  alert_((n ? n + ' case' + (n > 1 ? 's' : '') + ' added to the Cases tab.' : 'No new cases.') +
+    '\n\nCase folders seen in the log: ' + all.length + ' (' + gone.length + ' deleted, so not listed' +
+    (gone.length ? ': ' + gone.slice(0, 5).join(', ') + (gone.length > 5 ? ' …' : '') : '') + ').' +
+    '\nA case appears here once the PC reporter has seen its Inquiry Copilot folder (date_time-type_… under แฟ้มคดี).');
 }
 
 /** Work dates and notices for one case, ready to copy into a reply when a complainant asks. */

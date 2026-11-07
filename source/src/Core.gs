@@ -642,7 +642,7 @@ var Core = (function () {
     var get = function (folder) {
       var info = caseFolderInfo(folder);
       if (!info) return null;
-      if (!cases[folder]) cases[folder] = { folder: folder, start: info.start, type: info.type, deleted: false, workDates: {}, last: '', notices: [], seen: {}, steps: {}, statuses: [] };
+      if (!cases[folder]) cases[folder] = { folder: folder, start: info.start, type: info.type, deleted: false, workDates: {}, last: '', notices: [], seen: {}, steps: {}, statuses: [], copies: {} };
       return cases[folder];
     };
     rows.slice().sort(function (a, b) { return a.event_time < b.event_time ? -1 : a.event_time > b.event_time ? 1 : 0; }).forEach(function (r) {
@@ -654,9 +654,15 @@ var Core = (function () {
       var c = folder && get(folder);
       if (!c) return;
       var date = r.event_time.slice(0, 10);
-      if (d.path && /^folder_/.test(r.kind) && d.path.split('/').pop() === folder) {
-        c.deleted = r.kind === 'folder_deleted';
-        if (c.deleted) return;
+      // The same case folder can exist in more than one place (e.g. an old OneDrive copy and the D: storage).
+      // It only counts as deleted when every copy seen has been deleted.
+      if (d.path) {
+        var at = d.path.indexOf('/' + folder);
+        var where = at >= 0 ? d.path.slice(0, at + folder.length + 1) : d.path;
+        var self = d.path.split('/').pop() === folder && /^folder_/.test(r.kind);
+        c.copies[where] = !(self && r.kind === 'folder_deleted');
+        c.deleted = Object.keys(c.copies).every(function (w) { return !c.copies[w]; });
+        if (self && r.kind === 'folder_deleted') return;
       }
       if (r.kind === 'case_status') { c.statuses.push({ at: r.event_time, text: r.title, confirmed: d.confirmed_at || r.source_time, via: d.via || '' }); return; }
       if (/^calendar_/.test(r.kind)) return;   // plans, not work
@@ -673,7 +679,7 @@ var Core = (function () {
         c.notices.push(date);
       }
     });
-    Object.keys(cases).forEach(function (k) { cases[k].notices.sort(); delete cases[k].seen; cases[k].detected = latestStep(cases[k].steps); });
+    Object.keys(cases).forEach(function (k) { cases[k].notices.sort(); delete cases[k].seen; delete cases[k].copies; cases[k].detected = latestStep(cases[k].steps); });
     return cases;
   }
 

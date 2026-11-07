@@ -326,6 +326,14 @@ test('collectCases: work dates, notice letters by file name, deleted folders', (
   assert.deepStrictEqual(Object.keys(a.workDates), ['2026-11-05', '2026-11-06', '2026-12-03', '2026-12-04', '2026-12-10'], 'note counts, calendar plan does not');
   assert.deepStrictEqual(a.notices, ['2026-12-03'], 'one letter, edits not counted again');
   assert.ok(c['2026-11-06_0900-ฉ้อโกง_ข'].deleted);
+  // moved storage: the D: copy stays, the old OneDrive copy is deleted later -> the case is NOT deleted
+  const m = Core.collectCases([
+    row('folder_created', '2026-11-04T14:43:00+07:00', 'IC/p/' + F + '/2026-11-04_1443-ลักทรัพย์_ค'),
+    row('file_created', '2026-11-04T15:00:00+07:00', 'IC/p/' + F + '/2026-11-04_1443-ลักทรัพย์_ค/ฝากไฟล์/ปจว.pdf'),
+    row('folder_created', '2026-11-04T14:43:00+07:00', '#Police/Inquiry Copilot App/p/' + F + '/2026-11-04_1443-ลักทรัพย์_ค'),
+    row('folder_deleted', '2026-11-07T10:00:00+07:00', '#Police/Inquiry Copilot App/p/' + F + '/2026-11-04_1443-ลักทรัพย์_ค')
+  ], [F], [], {});
+  assert.strictEqual(m['2026-11-04_1443-ลักทรัพย์_ค'].deleted, false, 'another copy still exists');
 });
 
 
