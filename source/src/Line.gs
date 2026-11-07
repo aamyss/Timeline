@@ -123,7 +123,8 @@ function publicCase_(ctx, folder) {
     type: k.type || (Core.caseFolderInfo(folder) || {}).type || '',
     reported: k.start,
     status: info.status || '',
-    statusAt: info.status ? String(info.statusAt || '').slice(0, 10) : '',
+    statusAt: info.status ? String(info.statusAt || '').slice(0, 10) : '',          // when the progress happened
+    confirmedAt: info.status ? String(info.confirmedAt || '').slice(0, 10) : '',    // when he confirmed it (dates only)
     notices: (k.notices || []).slice(),
     closed: info.closed || ''
   };

@@ -666,9 +666,11 @@ var Core = (function () {
       }
       if (r.kind === 'case_status') { c.statuses.push({ at: r.event_time, text: r.title, confirmed: d.confirmed_at || r.source_time, via: d.via || '' }); return; }
       if (/^calendar_/.test(r.kind)) return;   // plans, not work
-      if (d.path && /_(created|renamed)$/.test(r.kind)) {
+      // When a step happened: the first time a matching file/folder appeared, or the time a matching photo was taken
+      // (photo_taken uses the time stored in the photo, e.g. scene photos), whichever is earliest.
+      if (d.path && /_(created|renamed)$|^photo_taken$/.test(r.kind)) {
         var rel = d.path.slice(d.path.indexOf('/' + folder + '/') + folder.length + 2);
-        if (d.path.indexOf('/' + folder + '/') >= 0) matchSteps(rel).forEach(function (k) { if (!c.steps[k]) c.steps[k] = r.event_time; });
+        if (d.path.indexOf('/' + folder + '/') >= 0) matchSteps(rel).forEach(function (k) { if (!c.steps[k] || r.event_time < c.steps[k]) c.steps[k] = r.event_time; });
       }
       c.workDates[date] = true;
       if (r.event_time > c.last) c.last = r.event_time;

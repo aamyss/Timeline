@@ -324,6 +324,11 @@ test('collectCases: work dates, notice letters by file name, deleted folders', (
   ], [F], ['แจ้งความคืบหน้า'], { '12/2569': '2026-11-05_0939-จราจร_ก' });
   const a = c['2026-11-05_0939-จราจร_ก'];
   assert.deepStrictEqual(Object.keys(a.workDates), ['2026-11-05', '2026-11-06', '2026-12-03', '2026-12-04', '2026-12-10'], 'note counts, calendar plan does not');
+  const p = Core.collectCases([
+    row('file_created', '2026-11-08T02:20:00+07:00', 'IC/p/' + F + '/2026-11-05_1510-ลัก_ก/ฝากไฟล์/ตรวจที่เกิดเหตุ/a.heic'),
+    row('photo_taken', '2026-11-05T10:04:00+07:00', 'IC/p/' + F + '/2026-11-05_1510-ลัก_ก/ฝากไฟล์/ตรวจที่เกิดเหตุ/a.heic')
+  ], [F], [], {});
+  assert.strictEqual(p['2026-11-05_1510-ลัก_ก'].detected.at, '2026-11-05T10:04:00+07:00', 'scene step dated by when the photo was taken, not when it was copied');
   assert.deepStrictEqual(a.notices, ['2026-12-03'], 'one letter, edits not counted again');
   assert.ok(c['2026-11-06_0900-ฉ้อโกง_ข'].deleted);
   // moved storage: the D: copy stays, the old OneDrive copy is deleted later -> the case is NOT deleted
@@ -657,6 +662,7 @@ test('v10 LINE: complainant links a case with its code and sees dates only', () 
   W.env.__ev = { range: cs6 }; run('onEdit(__ev)');
   const c2 = post({ action: 'line_cases', idToken: 'good-A' }).cases[0];
   assert.strictEqual(c2.status, 'รอเอกสารจากธนาคาร');
+  assert.strictEqual(c2.confirmedAt, c2.statusAt, 'typed: both dates the same');
   assert.strictEqual(c2.statusAt, run('Core.toBkkIso(new Date()).slice(0,10)'), 'date stamped by onEdit');
   const rep = run("caseReport_('" + code + "')");
   assert.ok(rep.workDates.includes('2026-11-04') && rep.next.n === 2, 'he can still pull them for a complainant');
