@@ -38,45 +38,39 @@ function lineGet_(api) {
   if (api === 'stats') {
     if (!lc.publicStats) return { ok: true, off: true };
     var cache = CacheService.getScriptCache();
-    var hit = cache.get('PUBLIC_STATS');
+    var hit = cache.get('PUBLIC_STATS_V2');
     if (hit) return JSON.parse(hit);
     var out = publicStats_();
-    cache.put('PUBLIC_STATS', JSON.stringify(out), 3 * 3600);
+    cache.put('PUBLIC_STATS_V2', JSON.stringify(out), 3 * 3600);
     return out;
   }
   return { ok: false, error: 'Unknown request' };
 }
 
-/** Totals per period, from months that have a roster (so on/off duty is known). */
+/** Totals for every month that has a roster (newest first) and for all of them together. */
 function publicStats_(ctx) {
   ctx = ctx || dayCtx_();
   var today = Core.toBkkIso(new Date()).slice(0, 10);
-  var months = Object.keys(ctx.months).sort();
-  var first = months.length ? months[0] + '-01' : today;
-  var thisM = today.slice(0, 7);
-  var lastM = Core.addMonths(thisM + '-01', -1).slice(0, 7);
-  var blank = function () { return { onMin: 0, outMin: 0, cases: {}, docs: 0, days: 0 }; };
-  var per = { month: blank(), last: blank(), all: blank() };
-  for (var d = first; d <= today; d = Core.addDays(d, 1)) {
-    if (!ctx.months[d.slice(0, 7)]) continue;
-    var s = dayData_(d, ctx, true).summary;
-    var buckets = [per.all];
-    if (d.slice(0, 7) === thisM) buckets.push(per.month);
-    if (d.slice(0, 7) === lastM) buckets.push(per.last);
-    buckets.forEach(function (b) {
-      b.onMin += s.elapsedMin; b.outMin += s.outsideMin; b.docs += s.created; b.days++;
-      s.cases.forEach(function (c) { b.cases[c] = true; });
-    });
-  }
-  var fmt = function (b, key, label) {
-    return { key: key, label: label, onDutyHours: Math.round(b.onMin / 6) / 10, outsideHours: Math.round(b.outMin / 6) / 10,
+  var months = Object.keys(ctx.months).filter(function (m) { return m <= today.slice(0, 7); }).sort();
+  var blank = function () { return { onMin: 0, outMin: 0, cases: {}, docs: 0 }; };
+  var per = {}, all = blank();
+  months.forEach(function (m) {
+    per[m] = blank();
+    for (var d = m + '-01'; d.slice(0, 7) === m && d <= today; d = Core.addDays(d, 1)) {
+      var s = dayData_(d, ctx, true).summary;
+      [per[m], all].forEach(function (b) {
+        b.onMin += s.elapsedMin; b.outMin += s.outsideMin; b.docs += s.created;
+        s.cases.forEach(function (c) { b.cases[c] = true; });
+      });
+    }
+  });
+  var fmt = function (b, label) {
+    return { label: label, onDutyHours: Math.round(b.onMin / 6) / 10, outsideHours: Math.round(b.outMin / 6) / 10,
       cases: Object.keys(b.cases).length, documents: b.docs };
   };
-  var list = [fmt(per.month, 'month', thisM)];
-  if (ctx.months[lastM]) list.push(fmt(per.last, 'last', lastM));
-  // "Since…" only when it covers more than the month cards above it.
-  if (first.slice(0, 7) < (ctx.months[lastM] ? lastM : thisM)) list.push(fmt(per.all, 'all', first.slice(0, 7)));
-  return { ok: true, asOf: Core.toBkkIso(new Date()).slice(0, 16), since: first, periods: list };
+  return { ok: true, asOf: Core.toBkkIso(new Date()).slice(0, 16), current: today.slice(0, 7),
+    months: months.slice().reverse().map(function (m) { return fmt(per[m], m); }),
+    all: fmt(all, months[0] || today.slice(0, 7)) };
 }
 
 /* ---------- signed in with LINE ---------- */
@@ -187,6 +181,6 @@ function saveLineSetup(o) {
   p.setProperty('LINE_LIFF_ID', liff);
   p.setProperty('LINE_CHANNEL_ID', ch);
   p.setProperty('PUBLIC_STATS', o.publicStats ? 'on' : 'off');
-  CacheService.getScriptCache().remove('PUBLIC_STATS');
+  CacheService.getScriptCache().remove('PUBLIC_STATS_V2');
   return lineSetupInfo();
 }

@@ -85,7 +85,8 @@ The **Cases** tab fills itself every hour: one row per Inquiry Copilot case fold
 - `case_no`: type the real case number, e.g. `2026-11-05_1510-ลักสายไฟ_โรงงาน_บริษัทตัวอย่าง` → `456/2569`. The app and the LINE page then show the number instead of the folder name.
 - `closed`: the date the file went to the prosecutor or the case ended (e.g. `2026-12-01`). The last progress notice is due that day.
 - **Case status** (columns F–L): the complainant sees only `status` on the LINE page.
-  - Every hour the script looks at what appeared in each Inquiry Copilot case folder (หมายเรียกพยานเอกสาร, ส่งของกลางเพื่อตรวจพิสูจน์, ผัดฟ้อง-ฝากขัง, คำให้การผู้ต้องหา, ปจว, …; the rules are `STATUS_RULES` in Core.gs) and puts the latest step in `detected` / `detected_at`, waiting for you.
+  - Every case starts as **รับคำร้องทุกข์แล้ว**, dated at the case folder's date and time.
+  - Every hour the script looks at what appeared in each Inquiry Copilot case folder (หมายเรียกพยานเอกสาร, ส่งของกลางเพื่อตรวจพิสูจน์, ผัดฟ้อง-ฝากขัง, คำให้การผู้ต้องหา, …; the rules are `STATUS_RULES` in Core.gs) and puts the latest step in `detected` / `detected_at`, waiting for you.
   - Confirm it with **ยืนยัน** in the `confirm` column, or with the button on the app's summary card. It becomes the status and keeps the date it was first detected (`status_at`); `confirmed_at` is when you confirmed. **ไม่ใช้** drops it and it isn't offered again.
   - You can also pick or type a status yourself in `status`; then both dates are the time you typed it.
   - Every status is logged (kind `case_status`, hash-chained), so **Case report** gives the whole history with both dates. Keep status text short and free of names.
@@ -106,7 +107,7 @@ A notice counts as sent when a file whose name contains a `NOTICE_WORDS` word ap
 
 ## LINE page (v10)
 `line/index.html` in the GitHub repo is a LIFF page for the work LINE OA, with two tabs:
-- **งานที่ได้ทำไปแล้ว** (was ผลงาน): totals only (on-duty hours, work outside shifts, cases, documents) for this month, last month and since the roster began. Off until you switch it on (ask your ผกก. first).
+- **งานที่ได้ทำไปแล้ว** (was ผลงาน): totals only (on-duty hours, work outside shifts, number of cases, number of documents): this month, any other month from a drop-down, and all time since the roster began. Off until you switch it on.
 - **ติดตามคดีของคุณ** (was คดีของฉัน): a complainant enters the case's `line_code` once. They then see the case number and type, the complaint date, the progress notices sent, the date the file went to the prosecutor and the status you set in the Cases tab. Not the list of work dates or the next due date (you give those on request with **Case report**), and never file names, names of people or times of day. Their LINE sign-in is checked with LINE's server; only a one-way hash of their LINE ID is kept (Links tab). Five wrong codes lock them out for an hour.
 
 It sends no LINE messages, so it uses none of the free plan's 300 pushes.

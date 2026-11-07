@@ -17,7 +17,14 @@ var CC = { folder: 1, caseNo: 2, note: 3, closed: 4, code: 5, status: 6, statusA
 var CONFIRM_YES = 'ยืนยัน', CONFIRM_NO = 'ไม่ใช้';
 
 function caseStatuses_() {
-  return Core.STATUS_RULES.map(function (r) { return r.text; }).concat(Core.MANUAL_STATUSES);
+  return [Core.START_STATUS].concat(Core.STATUS_RULES.map(function (r) { return r.text; }),
+    Core.MANUAL_STATUSES.filter(function (s) { return s !== Core.START_STATUS; }));
+}
+
+/** "2026-11-05_0939-…" -> "2026-11-05 09:39", the moment the case began (its starting status time). */
+function caseStartStamp_(folder) {
+  var i = Core.caseFolderInfo(folder);
+  return i ? i.start + ' ' + i.time : '';
 }
 
 /** "2026-11-08T02:40:31+07:00" -> "2026-11-08 02:40" (Bangkok, the way the tab shows times). */
@@ -106,6 +113,11 @@ function syncCasesTab_(ctx) {
   ctx.caseList.forEach(function (c) {
     have[c.folder] = true;
     if (!c.code && Core.caseFolderInfo(c.folder)) sh.getRange(c.row, CC.code).setNumberFormat('@').setValue(newCaseCode_());
+    var start = caseStartStamp_(c.folder);
+    if (!c.status && start) {   // every case starts as รับคำร้องทุกข์แล้ว, dated when the case began
+      sh.getRange(c.row, CC.status, 1, 3).setNumberFormat('@').setValues([[Core.START_STATUS, start, start]]);
+      c.status = Core.START_STATUS; c.statusAt = start; c.confirmedAt = start;
+    }
     var det = detectionOf(c.folder, c);
     var want = det ? [det.text, det.at] : ['', ''];
     if (want[0] !== c.detected || want[1] !== c.detectedAt) {
@@ -114,12 +126,17 @@ function syncCasesTab_(ctx) {
     }
   });
   var add = Object.keys(ctx.cases).sort().filter(function (f) { return !have[f] && !ctx.cases[f].deleted; }).map(function (f) {
-    var det = detectionOf(f, null);
-    return [f, '', '', '', newCaseCode_(), '', '', '', det ? det.text : '', det ? det.at : '', '', ''];
+    var start = caseStartStamp_(f);
+    var det = detectionOf(f, start ? { statusAt: start, skipped: '', status: Core.START_STATUS } : null);
+    return [f, '', '', '', newCaseCode_(), start ? Core.START_STATUS : '', start, start, det ? det.text : '', det ? det.at : '', '', ''];
   });
   if (add.length) {
-    sh.getRange(sh.getLastRow() + 1, 1, add.length, CASE_HEADERS.length).setNumberFormat('@')
+    var first = sh.getLastRow() + 1;
+    sh.getRange(first, 1, add.length, CASE_HEADERS.length).setNumberFormat('@')
       .setValues(add.map(function (r) { return r.map(cellSafe_); }));
+    add.forEach(function (r, i) {   // so the starting status is logged in this same run
+      ctx.caseList.push({ row: first + i, folder: r[0], caseNo: '', code: r[4], status: r[5], statusAt: r[6], confirmedAt: r[7], detected: r[8], detectedAt: r[9] });
+    });
   }
   logStatusChanges_(ctx);
   return add.length;
@@ -141,7 +158,8 @@ function logStatusChanges_(ctx) {
       source: 'Cases tab', kind: 'case_status', title: c.status, case_no: c.folder,
       event_time: at, event_end: '', strength: 'self', proof_url: '', source_id: '', source_time: confirmed,
       detail: JSON.stringify({ folder: c.folder, progress_at: at, confirmed_at: confirmed,
-        via: c.statusAt && c.statusAt !== c.confirmedAt ? 'detected from case files, confirmed' : 'typed' })
+        via: c.status === Core.START_STATUS && c.statusAt === caseStartStamp_(c.folder) ? 'starting status' :
+          c.statusAt && c.statusAt !== c.confirmedAt ? 'detected from case files, confirmed' : 'typed' })
     });
   });
   if (rows.length) {

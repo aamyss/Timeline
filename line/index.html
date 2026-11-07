@@ -32,6 +32,7 @@
   button.main:disabled { opacity:.6; }
   a { color:var(--muted); }
   button.link { background:none; border:0; padding:0; color:var(--muted); text-decoration:underline; font:inherit; font-size:12px; }
+  select { width:100%; font:inherit; font-size:16px; padding:9px; margin:0 0 12px; border:1px solid var(--line); border-radius:10px; background:var(--bg); color:var(--fg); }
   .err { color:var(--red); font-size:13px; min-height:18px; margin-top:6px; }
   .hide { display:none; }
 </style>
@@ -111,23 +112,51 @@
   $('tCases').onclick = function () { show('cases'); };
 
   /* ---------- ผลงาน: totals only ---------- */
+  function statCard(title, p, extra) {
+    return '<div class="card"><h2>' + esc(title) + '</h2>' + (extra || '') + '<div class="nums">' +
+      '<div class="num"><b>' + num(p.onDutyHours) + '</b><span>ชั่วโมงปฏิบัติหน้าที่ตามเวร</span></div>' +
+      '<div class="num"><b>' + num(p.outsideHours) + '</b><span>ชั่วโมงทำงานนอกเวลาเวร (โดยประมาณ)</span></div>' +
+      '<div class="num"><b>' + num(p.cases) + '</b><span>คดีที่ดำเนินการ</span></div>' +
+      '<div class="num"><b>' + num(p.documents) + '</b><span>เอกสารที่จัดทำ</span></div></div></div>';
+  }
   function renderStats(j) {
     if (j.off) { $('stats').innerHTML = '<div class="card muted">ยังไม่เปิดเผยข้อมูลงานที่ได้ทำไปแล้ว</div>'; return; }
-    var label = { month: function (p) { return 'เดือนนี้ · ' + thMonth(p.label); }, last: function (p) { return thMonth(p.label); },
-      all: function (p) { return 'ตั้งแต่ ' + thMonth(p.label); } };
-    $('stats').innerHTML = j.periods.map(function (p) {
-      return '<div class="card"><h2>' + esc(label[p.key](p)) + '</h2><div class="nums">' +
-        '<div class="num"><b>' + num(p.onDutyHours) + '</b><span>ชั่วโมงปฏิบัติหน้าที่ตามเวร</span></div>' +
-        '<div class="num"><b>' + num(p.outsideHours) + '</b><span>ชั่วโมงทำงานนอกเวลาเวร (โดยประมาณ)</span></div>' +
-        '<div class="num"><b>' + num(p.cases) + '</b><span>คดีที่ดำเนินการ</span></div>' +
-        '<div class="num"><b>' + num(p.documents) + '</b><span>เอกสารที่จัดทำ</span></div></div></div>';
-    }).join('') + '<div class="muted" style="margin:12px 4px 0">นับจากบันทึกการทำงานอัตโนมัติ ข้อมูล ณ ' +
+    if (!j.months) { $('stats').innerHTML = '<div class="card muted">กำลังอัปเดตข้อมูล กรุณาเปิดใหม่ภายหลัง</div>'; return; }
+    var cur = j.months.filter(function (m) { return m.label === j.current; })[0] ||
+      { label: j.current, onDutyHours: 0, outsideHours: 0, cases: 0, documents: 0 };
+    var others = j.months.filter(function (m) { return m.label !== j.current; });
+    var h = statCard('เดือนนี้ · ' + thMonth(cur.label), cur);
+    if (others.length) {
+      h += '<div id="pick"></div>';
+    }
+    h += statCard('ทั้งหมด · ตั้งแต่ ' + thMonth(j.all.label), j.all);
+    h += '<div class="muted" style="margin:12px 4px 0">นับจากบันทึกการทำงานอัตโนมัติ ข้อมูล ณ ' +
       esc(thDate(j.asOf.slice(0, 10))) + ' เวลา ' + esc(j.asOf.slice(11, 16)) + ' น. ไม่แสดงรายละเอียดคดีหรือบุคคล</div>';
+    $('stats').innerHTML = h;
+    if (!others.length) return;
+    var showMonth = function (key) {
+      var m = others.filter(function (x) { return x.label === key; })[0];
+      var sel = '<select id="month" aria-label="เลือกเดือน">' + others.map(function (x) {
+        return '<option value="' + esc(x.label) + '"' + (x.label === key ? ' selected' : '') + '>' + esc(thMonth(x.label)) + '</option>';
+      }).join('') + '</select>';
+      $('pick').innerHTML = statCard('ดูเดือนอื่น', m, sel);
+      $('month').onchange = function () { showMonth(this.value); };
+    };
+    showMonth(others[0].label);
   }
 
   /* ---------- คดีของฉัน: signed in with LINE ---------- */
+  function setupGap() {
+    if (!cfg.liffId) return 'ยังไม่เปิดใช้การติดตามคดี (ยังไม่ได้ใส่ LIFF ID ในการตั้งค่า)';
+    if (!cfg.casesOn) return 'ยังไม่เปิดใช้การติดตามคดี (ยังไม่ได้ใส่ Channel ID ในการตั้งค่า)';
+    return '';
+  }
   function idToken() {
-    return liffReady.then(function () {
+    return cfgReady.then(function () {
+      var gap = setupGap();
+      if (gap) throw new Error(gap);
+      return liffReady;
+    }).then(function () {
       if (!liff.isLoggedIn()) { liff.login({ redirectUri: location.href }); throw new Error('กำลังเข้าสู่ระบบ LINE…'); }
       var t = liff.getIDToken();
       if (!t) throw new Error('กรุณาปิดแล้วเปิดหน้านี้ใหม่จากใน LINE');
@@ -152,11 +181,11 @@
   }
 
   function loadCases() {
-    if (!cfg || !cfg.casesOn || !cfg.liffId) { $('caseList').innerHTML = '<div class="card muted">ยังไม่เปิดใช้การติดตามคดี</div>'; $('link').disabled = true; return; }
+    casesLoaded = true;
     $('caseList').innerHTML = '<div class="card muted">กำลังโหลด…</div>';
     idToken().then(function (t) { return post({ action: 'line_cases', idToken: t }); })
       .then(function (j) { renderCases(j.cases); })
-      .catch(function (e) { $('caseList').innerHTML = '<div class="card err">' + esc(e.message) + '</div>'; });
+      .catch(function (e) { casesLoaded = false; $('caseList').innerHTML = '<div class="card err">' + esc(e.message) + '</div>'; });
   }
 
   $('code').oninput = function () { $('codeErr').textContent = ''; };
@@ -179,13 +208,16 @@
 
   /* ---------- start ---------- */
   var wantCases = /[?&]tab=cases/.test(href);
-  get('api=line_config').then(function (j) {
+  // The config arrives first; anything that needs it (the case tab, the button) waits for it instead of giving up.
+  var cfgReady = get('api=line_config').then(function (j) {
     cfg = j;
-    liffReady = j.liffId && window.liff ? liff.init({ liffId: j.liffId }) : Promise.reject(new Error('ยังไม่เปิดใช้การติดตามคดี'));
+    liffReady = !j.liffId ? Promise.resolve() : !window.liff ? Promise.reject(new Error('โหลดชุดเครื่องมือ LINE ไม่สำเร็จ กรุณาเปิดหน้านี้ใหม่'))
+      : liff.init({ liffId: j.liffId }).catch(function (e) { throw new Error('เชื่อมต่อ LINE ไม่สำเร็จ: ' + ((e && e.message) || e)); });
     liffReady.catch(function () { /* shown when the tab is used */ });
-    if (wantCases) show('cases');
-    return get('api=stats').then(renderStats);
-  }).catch(function (e) {
+    return j;
+  });
+  if (wantCases) show('cases');
+  cfgReady.then(function () { return get('api=stats').then(renderStats); }).catch(function (e) {
     $('stats').innerHTML = '<div class="card err">โหลดไม่สำเร็จ: ' + esc(e.message) + '</div>';
   });
 })();

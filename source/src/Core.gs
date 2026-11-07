@@ -565,7 +565,6 @@ var Core = (function () {
    * text is what the complainant sees once he confirms it, so it never names anyone.
    */
   var STATUS_RULES = [
-    { key: 'complaint', text: 'รับคำร้องทุกข์แล้ว', words: ['ปจว', 'บันทึกประจำวัน'] },
     { key: 'scene', text: 'ตรวจสถานที่เกิดเหตุแล้ว', words: ['บันทึกการตรวจสถานที่เกิดเหตุ', 'ภาพตรวจที่เกิดเหตุ', 'ตรวจที่เกิดเหตุ', 'ตรวจเหตุ', 'แผนที่เกิดเหตุ'] },
     { key: 'victim', text: 'สอบปากคำผู้กล่าวหาแล้ว', words: ['คำให้การผู้กล่าวหา', 'คำให้การผู้เสียหาย', 'คำให้การผู้ร้องทุกข์'] },
     { key: 'witness', text: 'สอบปากคำพยานแล้ว', words: ['คำให้การพยาน'] },
@@ -581,8 +580,10 @@ var Core = (function () {
     { key: 'summary', text: 'สรุปสำนวนการสอบสวน', words: ['สรุปสำนวน', 'บันทึกความเห็น'] },
     { key: 'prosecutor', text: 'ส่งสำนวนให้พนักงานอัยการแล้ว', words: ['ส่งสำนวน', 'นำส่งสำนวน'] }
   ];
+  // Every case starts with this status (dated at the case folder's date and time); no detection needed.
+  var START_STATUS = 'รับคำร้องทุกข์แล้ว';
   // Things he can pick by hand that files can't show.
-  var MANUAL_STATUSES = ['รวบรวมพยานหลักฐาน', 'ติดตามตัวผู้ต้องหา', 'เสนอสำนวนต่อผู้บังคับบัญชา',
+  var MANUAL_STATUSES = [START_STATUS, 'รวบรวมพยานหลักฐาน', 'ติดตามตัวผู้ต้องหา', 'เสนอสำนวนต่อผู้บังคับบัญชา',
     'พนักงานอัยการสั่งสอบสวนเพิ่มเติม', 'รอผลการพิจารณาของพนักงานอัยการ', 'คดีเสร็จสิ้น'];
 
   /** Path below the case folder -> matching rule keys (Inquiry Copilot's own files ignored). */
@@ -610,8 +611,8 @@ var Core = (function () {
 
   /** Inquiry Copilot case folder "2026-11-05_0939-จราจร_ชื่อ" -> {start, type}; anything else -> null. */
   function caseFolderInfo(folder) {
-    var m = String(folder || '').match(/^(\d{4}-\d{2}-\d{2})_(\d{4})-([^_]*)/);
-    return m ? { start: m[1], type: m[3] } : null;
+    var m = String(folder || '').match(/^(\d{4}-\d{2}-\d{2})_(\d{2})(\d{2})-([^_]*)/);
+    return m ? { start: m[1], time: m[2] + ':' + m[3], type: m[4] } : null;
   }
 
   function addMonths(dateStr, n) {
@@ -724,7 +725,7 @@ var Core = (function () {
     mergeSpans: mergeSpans, subtractSpans: subtractSpans, isDocPath: isDocPath, fmtDur: fmtDur, fmtDay: fmtDay,
     daySummary: daySummary, summaryLines: summaryLines, caseFolderInfo: caseFolderInfo, caseFolderOf: caseFolderOf,
     addMonths: addMonths, daysBetween: daysBetween, collectCases: collectCases, noticeStatus: noticeStatus,
-    STATUS_RULES: STATUS_RULES, MANUAL_STATUSES: MANUAL_STATUSES, matchSteps: matchSteps, latestStep: latestStep
+    STATUS_RULES: STATUS_RULES, MANUAL_STATUSES: MANUAL_STATUSES, START_STATUS: START_STATUS, matchSteps: matchSteps, latestStep: latestStep
   };
 })();
 

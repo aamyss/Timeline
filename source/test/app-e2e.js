@@ -79,6 +79,7 @@ const srv = http.createServer((q, s) => {
     body: 'window.liff={init:function(){return Promise.resolve()},isLoggedIn:function(){return true},getIDToken:function(){return "tok"},login:function(){}};' }));
   await lp.route('https://script.google.com/**', async (route) => {
     const req = route.request(); let text;
+    if (/api=line_config/.test(req.url())) await new Promise(r => setTimeout(r, 800));   // slow config: the page must wait, not give up
     if (req.method() === 'GET') { const uu = new URL(req.url()); const p = {}; uu.searchParams.forEach((v, k) => { p[k] = v; }); W.env.__e = { parameter: p }; text = run('doGet(__e)').text; }
     else { W.env.__e = { postData: { contents: req.postData() } }; text = run('doPost(__e)').text; }
     await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: text });
@@ -88,10 +89,11 @@ const srv = http.createServer((q, s) => {
   check('LINE page without ?u asks to open from LINE', /เปิดหน้านี้จากเมนูใน LINE/.test(await lp.innerText('#stats')));
   await lp.goto(lbase + '?u=AKfycbTESTdeployment0001'); await lp.waitForSelector('.num', { timeout: 5000 });
   const st = await lp.innerText('#stats');
-  check('LINE ผลงาน shows totals only', /ชั่วโมงปฏิบัติหน้าที่ตามเวร/.test(st) && /เอกสารที่จัดทำ/.test(st) && !/Xpander|docx/.test(st));
+  check('LINE งานที่ได้ทำไปแล้ว: this month + all time, totals only', /เดือนนี้/.test(st) && /ทั้งหมด/.test(st) && /ชั่วโมงปฏิบัติหน้าที่ตามเวร/.test(st) && !/Xpander|docx/.test(st));
   await lp.screenshot({ path: '/tmp/line-stats.png' });
-  await lp.goto(lbase + '?u=AKfycbTESTdeployment0001&tab=cases'); await lp.waitForTimeout(500);
-  await lp.fill('#code', 'zzzz zzzz'); await lp.click('#link'); await lp.waitForTimeout(300);
+  await lp.goto(lbase + '?u=AKfycbTESTdeployment0001&tab=cases'); await lp.waitForTimeout(100);
+  check('track button usable before the config arrives', !(await lp.isDisabled('#link')));
+  await lp.fill('#code', 'zzzz zzzz'); await lp.click('#link'); await lp.waitForFunction(() => document.getElementById('codeErr').textContent, null, { timeout: 5000 });
   check('LINE wrong code refused', /ไม่พบรหัส/.test(await lp.innerText('#codeErr')));
   await lp.fill('#code', code.toLowerCase()); await lp.click('#link');
   await lp.waitForSelector('#caseList h2', { timeout: 5000 });

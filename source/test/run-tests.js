@@ -293,7 +293,7 @@ test('daySummary: shift still running shows "so far"; a night shift ends at 24:0
 });
 
 test('progress notices: 30 days, then 2 months after the first, final when the file goes to the prosecutor', () => {
-  assert.deepStrictEqual(Core.caseFolderInfo('2026-11-05_0939-จราจร_นายตัวอย่าง'), { start: '2026-11-05', type: 'จราจร' });
+  assert.deepStrictEqual(Core.caseFolderInfo('2026-11-05_0939-จราจร_นายตัวอย่าง'), { start: '2026-11-05', time: '09:39', type: 'จราจร' });
   assert.strictEqual(Core.caseFolderInfo('77-2569 ลักทรัพย์'), null);
   let st = Core.noticeStatus('2026-11-05', [], '2026-11-30');
   assert.deepStrictEqual([st.next.n, st.next.due, st.daysLeft, st.overdue], [1, '2026-12-05', 5, false]);
@@ -334,11 +334,11 @@ test('status rules: Inquiry Copilot folder and file names -> case steps; latest 
   assert.deepStrictEqual(Core.matchSteps('รายการส่งตรวจของกลาง/ส่งของกลางเพื่อตรวจพิสูจน์-ผบก.พฐก._J'), ['forensic']);
   assert.deepStrictEqual(Core.matchSteps('ผู้ต้องหา/นาย ข_X/ผัดฟ้อง-ฝากขัง'), ['custody']);
   assert.deepStrictEqual(Core.matchSteps('ผู้ต้องหา/นาย ข_X/คำให้การผู้ต้องหา'), ['charged']);
-  assert.deepStrictEqual(Core.matchSteps('ฝากไฟล์/ปจว.pdf'), ['complaint']);
+  assert.deepStrictEqual(Core.matchSteps('ฝากไฟล์/ปจว.pdf'), [], 'รับคำร้องทุกข์แล้ว is the starting status, not detected');
   assert.deepStrictEqual(Core.matchSteps('เอกสาร/ใบปะหน้าสำหรับจัดเก็บ/แผ่นปะหน้าสำนวน.docx'), [], 'Inquiry Copilot cover sheets are not a step');
   assert.deepStrictEqual(Core.matchSteps('ของกลาง/ห้ามลบ'), []);
   assert.deepStrictEqual(Core.matchSteps('__res__/session.json'), []);
-  const l = Core.latestStep({ complaint: '2026-11-05T09:00:00+07:00', docs: '2026-11-06T10:00:00+07:00', scene: '2026-11-05T10:00:00+07:00' });
+  const l = Core.latestStep({ victim: '2026-11-05T09:00:00+07:00', docs: '2026-11-06T10:00:00+07:00', scene: '2026-11-05T10:00:00+07:00' });
   assert.deepStrictEqual([l.key, l.at], ['docs', '2026-11-06T10:00:00+07:00']);
   assert.ok(Core.STATUS_RULES.every(r => !/นาย|นาง|น\.ส\./.test(r.text)), 'no names in status texts');
 });
@@ -545,7 +545,7 @@ test('v11: detected status waits for confirmation; confirmed keeps the detected 
   run('collectAll()');
   const F = '2026-11-01_0900-ฉ้อโกง_นายทดลอง';
   let c = run('readCases_()').find(x => x.folder === F);
-  assert.deepStrictEqual([c.status, c.detected, c.detectedAt], ['', 'ออกหมายเรียกพยานเอกสาร รอเอกสารตอบกลับ', '2026-11-03 10:00'], 'latest step waits, folder time');
+  assert.deepStrictEqual([c.status, c.statusAt, c.detected, c.detectedAt], ['รับคำร้องทุกข์แล้ว', '2026-11-01 09:00', 'ออกหมายเรียกพยานเอกสาร รอเอกสารตอบกลับ', '2026-11-03 10:00'], 'starts as รับคำร้องทุกข์แล้ว at the folder time; latest step waits');
   const K = W.props.VIEW_KEY;
   let d = run("getDay('2026-11-03', '" + K + "')");
   assert.ok(d.summary.pending.some(p => p.folder === F) && d.summaryLines.some(l => l.key === 'pending'), 'app shows it waiting');
@@ -558,11 +558,12 @@ test('v11: detected status waits for confirmation; confirmed keeps the detected 
   assert.strictEqual(post({ action: 'status', k: 'nope', folder: F, decision: 'yes' }).ok, false, 'needs the key');
   run('collectAll()');
   let hist = run('readLog_()').filter(x => x.kind === 'case_status' && x.case_no === F);
-  assert.strictEqual(hist.length, 1);
-  assert.strictEqual(hist[0].event_time, '2026-11-03T10:00:00+07:00', 'history keeps the date it happened');
-  assert.ok(/detected/.test(JSON.parse(hist[0].detail).via));
+  assert.strictEqual(hist.length, 2);
+  assert.deepStrictEqual([hist[0].title, hist[0].event_time, JSON.parse(hist[0].detail).via], ['รับคำร้องทุกข์แล้ว', '2026-11-01T09:00:00+07:00', 'starting status']);
+  assert.strictEqual(hist[1].event_time, '2026-11-03T10:00:00+07:00', 'history keeps the date it happened');
+  assert.ok(/detected/.test(JSON.parse(hist[1].detail).via));
   run('collectAll()');
-  assert.strictEqual(run('readLog_()').filter(x => x.kind === 'case_status' && x.case_no === F).length, 1, 'not logged twice');
+  assert.strictEqual(run('readLog_()').filter(x => x.kind === 'case_status' && x.case_no === F).length, 2, 'not logged twice');
   c = run('readCases_()').find(x => x.folder === F);
   assert.strictEqual(c.detected, '', 'confirmed step not offered again');
   // a newer step appears; he drops it in the sheet
@@ -580,9 +581,9 @@ test('v11: detected status waits for confirmation; confirmed keeps the detected 
   sh.getRange(c.row, 6).setValue('รวบรวมพยานหลักฐาน'); W.env.__ev = { range: sh.getRange(c.row, 6) }; run('onEdit(__ev)');
   run('collectAll()');
   hist = run('readLog_()').filter(x => x.kind === 'case_status' && x.case_no === F);
-  assert.deepStrictEqual(JSON.parse(JSON.stringify(hist.map(h => h.title))), ['ออกหมายเรียกพยานเอกสาร รอเอกสารตอบกลับ', 'รวบรวมพยานหลักฐาน']);
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(hist.map(h => h.title))), ['รับคำร้องทุกข์แล้ว', 'ออกหมายเรียกพยานเอกสาร รอเอกสารตอบกลับ', 'รวบรวมพยานหลักฐาน']);
   const rep = run("caseReport_('" + F + "')");
-  assert.strictEqual(rep.history.length, 2, 'full history for him');
+  assert.strictEqual(rep.history.length, 3, 'full history for him');
   assert.ok(/Log OK/.test(run('verifyLog()')));
   d = run("getDay('2026-11-03', '" + K + "')");
   assert.ok(d.entries.some(e => e.kind === 'case_status'), 'status shows on the day it happened');
@@ -611,7 +612,9 @@ test('v10 LINE: config and totals are public but totals stay off until switched 
   assert.throws(() => run("saveLineSetup({liffId:'nope'})"), /LIFF ID/);
   const st = get({ api: 'stats' });
   assert.strictEqual(st.ok, true);
-  const all = st.periods.find(p => p.key === 'all') || st.periods.find(p => p.key === 'month');
+  assert.ok(st.current && Array.isArray(st.months) && st.months.length >= 1, 'every roster month');
+  const all = st.all;
+  assert.strictEqual(st.months[0].label, st.current, 'newest month first');
   assert.ok(all.onDutyHours > 0 && all.documents >= 1 && all.cases >= 1, JSON.stringify(all));
   assert.ok(!/ลักทรัพย์|นายตัวอย่าง|docx|345/.test(JSON.stringify(st)), 'totals only: no names, files or case numbers');
 });
@@ -638,7 +641,8 @@ test('v10 LINE: complainant links a case with its code and sees dates only', () 
   const c = r.cases[0];
   assert.deepStrictEqual([c.caseNo, c.type, c.reported, c.notices], ['345/2569', 'ลักทรัพย์', '2026-10-20', ['2026-11-04']]);
   assert.ok(!('workDates' in c) && !('next' in c) && !('lastWorked' in c), 'work dates, next due date and last day worked are not sent to LINE');
-  assert.strictEqual(c.status, '', 'no status yet');
+  assert.strictEqual(c.status, 'รับคำร้องทุกข์แล้ว', 'starting status');
+  assert.strictEqual(c.statusAt, '2026-10-20', 'dated when the case began');
   const cr = run('readCases_()').find(x => x.caseNo === '345/2569');
   const cs6 = W.ss.getSheetByName('Cases').getRange(cr.row, 6);
   cs6.setValue('รอเอกสารจากธนาคาร');
