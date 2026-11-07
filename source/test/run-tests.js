@@ -328,6 +328,21 @@ test('collectCases: work dates, notice letters by file name, deleted folders', (
   assert.ok(c['2026-11-06_0900-ฉ้อโกง_ข'].deleted);
 });
 
+
+test('status rules: Inquiry Copilot folder and file names -> case steps; latest wins', () => {
+  assert.deepStrictEqual(Core.matchSteps('หมายเรียกพยานเอกสาร/บริษัท ก_X/หมายเรียกพยานเอกสาร-บริษัท ก.docx'), ['docs']);
+  assert.deepStrictEqual(Core.matchSteps('รายการส่งตรวจของกลาง/ส่งของกลางเพื่อตรวจพิสูจน์-ผบก.พฐก._J'), ['forensic']);
+  assert.deepStrictEqual(Core.matchSteps('ผู้ต้องหา/นาย ข_X/ผัดฟ้อง-ฝากขัง'), ['custody']);
+  assert.deepStrictEqual(Core.matchSteps('ผู้ต้องหา/นาย ข_X/คำให้การผู้ต้องหา'), ['charged']);
+  assert.deepStrictEqual(Core.matchSteps('ฝากไฟล์/ปจว.pdf'), ['complaint']);
+  assert.deepStrictEqual(Core.matchSteps('เอกสาร/ใบปะหน้าสำหรับจัดเก็บ/แผ่นปะหน้าสำนวน.docx'), [], 'Inquiry Copilot cover sheets are not a step');
+  assert.deepStrictEqual(Core.matchSteps('ของกลาง/ห้ามลบ'), []);
+  assert.deepStrictEqual(Core.matchSteps('__res__/session.json'), []);
+  const l = Core.latestStep({ complaint: '2026-11-05T09:00:00+07:00', docs: '2026-11-06T10:00:00+07:00', scene: '2026-11-05T10:00:00+07:00' });
+  assert.deepStrictEqual([l.key, l.at], ['docs', '2026-11-06T10:00:00+07:00']);
+  assert.ok(Core.STATUS_RULES.every(r => !/นาย|นาง|น\.ส\./.test(r.text)), 'no names in status texts');
+});
+
 /* ===================== Whole script on fakes ===================== */
 console.log('Script (fakes)');
 
@@ -515,6 +530,62 @@ test('v9: day data carries the summary card and progress notices', () => {
   const d2 = run("dayData_('2026-11-03')");
   const n2 = d2.summary.notices.all.find(x => x.label === '345/2569');
   assert.deepStrictEqual([n2.n, n2.due, n2.daysLeft], [1, '2026-11-19', 16], 'as of 3 Nov the first notice was still pending');
+});
+
+
+test('v11: detected status waits for confirmation; confirmed keeps the detected date; history is logged', () => {
+  const post = (o) => JSON.parse(run('doPost(' + JSON.stringify({ postData: { contents: JSON.stringify(o) } }) + ')').text);
+  const now = new Date().toISOString().slice(0, 19) + 'Z';
+  const base = 'p/แฟ้มคดี/2026-11-01_0900-ฉ้อโกง_นายทดลอง';
+  post({ token: W.props.PC_TOKEN, device: 'PC', deviceNow: now, events: [
+    { kind: 'folder_created', root: 'Inquiry Copilot', path: base, time: '2026-11-01T02:00:00Z' },
+    { kind: 'file_created', root: 'Inquiry Copilot', path: base + '/ฝากไฟล์/ปจว.pdf', time: '2026-11-01T02:10:00Z', sha256: 'p1' },
+    { kind: 'folder_created', root: 'Inquiry Copilot', path: base + '/หมายเรียกพยานเอกสาร/ธนาคาร ก_ABC', time: '2026-11-03T03:00:00Z' },
+    { kind: 'file_created', root: 'Inquiry Copilot', path: base + '/หมายเรียกพยานเอกสาร/ธนาคาร ก_ABC/หมายเรียกพยานเอกสาร-ธนาคาร ก.docx', time: '2026-11-03T03:05:00Z', sha256: 'p2' }] });
+  run('collectAll()');
+  const F = '2026-11-01_0900-ฉ้อโกง_นายทดลอง';
+  let c = run('readCases_()').find(x => x.folder === F);
+  assert.deepStrictEqual([c.status, c.detected, c.detectedAt], ['', 'ออกหมายเรียกพยานเอกสาร รอเอกสารตอบกลับ', '2026-11-03 10:00'], 'latest step waits, folder time');
+  const K = W.props.VIEW_KEY;
+  let d = run("getDay('2026-11-03', '" + K + "')");
+  assert.ok(d.summary.pending.some(p => p.folder === F) && d.summaryLines.some(l => l.key === 'pending'), 'app shows it waiting');
+  // confirm from the app
+  const r = post({ action: 'status', k: K, folder: F, decision: 'yes', date: '2026-11-03' });
+  assert.strictEqual(r.ok, true, r.error);
+  c = run('readCases_()').find(x => x.folder === F);
+  assert.deepStrictEqual([c.status, c.statusAt, c.detected], ['ออกหมายเรียกพยานเอกสาร รอเอกสารตอบกลับ', '2026-11-03 10:00', '']);
+  assert.ok(c.confirmedAt > c.statusAt, 'confirmed later, both dates kept');
+  assert.strictEqual(post({ action: 'status', k: 'nope', folder: F, decision: 'yes' }).ok, false, 'needs the key');
+  run('collectAll()');
+  let hist = run('readLog_()').filter(x => x.kind === 'case_status' && x.case_no === F);
+  assert.strictEqual(hist.length, 1);
+  assert.strictEqual(hist[0].event_time, '2026-11-03T10:00:00+07:00', 'history keeps the date it happened');
+  assert.ok(/detected/.test(JSON.parse(hist[0].detail).via));
+  run('collectAll()');
+  assert.strictEqual(run('readLog_()').filter(x => x.kind === 'case_status' && x.case_no === F).length, 1, 'not logged twice');
+  c = run('readCases_()').find(x => x.folder === F);
+  assert.strictEqual(c.detected, '', 'confirmed step not offered again');
+  // a newer step appears; he drops it in the sheet
+  post({ token: W.props.PC_TOKEN, device: 'PC', deviceNow: new Date().toISOString().slice(0, 19) + 'Z', events: [
+    { kind: 'folder_created', root: 'Inquiry Copilot', path: base + '/รายการส่งตรวจของกลาง/ส่งของกลางเพื่อตรวจพิสูจน์-ผบก.พฐก._Q', time: '2026-11-04T03:00:00Z' }] });
+  run('collectAll()');
+  c = run('readCases_()').find(x => x.folder === F);
+  assert.strictEqual(c.detected, 'ส่งของกลางตรวจพิสูจน์ รอผล');
+  const sh = W.ss.getSheetByName('Cases');
+  sh.getRange(c.row, 11).setValue('ไม่ใช้'); W.env.__ev = { range: sh.getRange(c.row, 11) }; run('onEdit(__ev)');
+  run('collectAll()');
+  c = run('readCases_()').find(x => x.folder === F);
+  assert.deepStrictEqual([c.detected, c.status, c.skipped], ['', 'ออกหมายเรียกพยานเอกสาร รอเอกสารตอบกลับ', '2026-11-04 10:00'], 'dropped and not offered again');
+  // typing a status by hand
+  sh.getRange(c.row, 6).setValue('รวบรวมพยานหลักฐาน'); W.env.__ev = { range: sh.getRange(c.row, 6) }; run('onEdit(__ev)');
+  run('collectAll()');
+  hist = run('readLog_()').filter(x => x.kind === 'case_status' && x.case_no === F);
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(hist.map(h => h.title))), ['ออกหมายเรียกพยานเอกสาร รอเอกสารตอบกลับ', 'รวบรวมพยานหลักฐาน']);
+  const rep = run("caseReport_('" + F + "')");
+  assert.strictEqual(rep.history.length, 2, 'full history for him');
+  assert.ok(/Log OK/.test(run('verifyLog()')));
+  d = run("getDay('2026-11-03', '" + K + "')");
+  assert.ok(d.entries.some(e => e.kind === 'case_status'), 'status shows on the day it happened');
 });
 
 test('seal emails the day CSV with the chain hash, once per day', () => {

@@ -15,7 +15,7 @@ var REPORT_KIND = {
   file_created: 'Created', file_modified: 'Edited', file_renamed: 'Renamed', file_deleted: 'Deleted',
   photo_taken: 'Photo taken', location_checkin: 'Location', place_arrived: 'Arrived', place_left: 'Left',
   folder_created: 'New folder', folder_deleted: 'Folder deleted', calendar_event: 'Calendar',
-  calendar_changed: 'Calendar changed', calendar_cancelled: 'Calendar cancelled', note: 'Note'
+  calendar_changed: 'Calendar changed', calendar_cancelled: 'Calendar cancelled', note: 'Note', case_status: 'Case status'
 };
 
 function esc_(s) {
@@ -37,6 +37,11 @@ function summaryCardHtml_(day) {
   urgent.slice(0, 8).forEach(function (n) {
     h.push('<tr><td></td><td style="padding:0 6px 4px;font-size:12px;color:' + (n.overdue ? '#a32d2d' : '#8a5300') + '">• ' +
       esc_(n.label) + ': ' + esc_(n.text) + '</td></tr>');
+  });
+  var pend = (day.summary && day.summary.pending) || [];
+  pend.slice(0, 8).forEach(function (p) {
+    h.push('<tr><td></td><td style="padding:0 6px 4px;font-size:12px;color:#8a5300">• ' + esc_(p.label) + ': ' + esc_(p.text) +
+      ' <span style="color:#888">(found ' + esc_(p.at) + ')</span></td></tr>');
   });
   if (urgent.length > 8) h.push('<tr><td></td><td style="padding:0 6px 8px;font-size:12px;color:#888">+ ' + (urgent.length - 8) + ' more in the app</td></tr>');
   h.push('</table>');

@@ -80,6 +80,8 @@
   .sum summary { color:var(--muted); cursor:pointer; }
   .sum details li { color:var(--fg); }
   .sum details ul { margin-left:0; }
+  .sum ul.pend li { padding:6px 0; border-top:1px solid var(--line); }
+  .sum ul.pend button { font-size:13px; padding:3px 10px; margin-top:4px; }
   .hide { display:none; }
   .link { background:none; border:none; padding:0; color:var(--muted); text-decoration:underline; font-size:12px; }
 </style>
@@ -139,7 +141,7 @@
     folder_created: 'New folder', folder_renamed: 'Folder renamed', folder_moved: 'Folder moved',
     folder_deleted: 'Folder deleted', folder_added: 'Folder added', folder_restored: 'Folder restored',
     calendar_event: 'Calendar', calendar_changed: 'Calendar changed', calendar_cancelled: 'Calendar cancelled',
-    note: 'Note', photo_taken: 'Photo taken', location_checkin: 'Location', place_arrived: 'Arrived', place_left: 'Left'
+    note: 'Note', case_status: 'Case status', photo_taken: 'Photo taken', location_checkin: 'Location', place_arrived: 'Arrived', place_left: 'Left'
   };
   var STRENGTH = { strong: 'Strong', medium: 'Medium', self: 'Self-reported' };
   var cfg = null;
@@ -299,6 +301,11 @@
       return '<div class="l ' + esc(l.key) + '"><div class="k">' + esc(l.label) + '</div><div class="v' + (l.warn ? ' w' : '') + '">' + esc(l.text) + '</div></div>' +
         (l.key === 'notices' ? '<ul>' + d.summary.notices.urgent.map(function (n) {
           return '<li class="' + (n.overdue ? 'over' : 'soon') + '">' + esc(n.label) + ': ' + esc(n.text) + '</li>';
+        }).join('') + '</ul>' : '') +
+        (l.key === 'pending' ? '<ul class="pend">' + d.summary.pending.map(function (p) {
+          return '<li><b>' + esc(p.label) + '</b><br>' + esc(p.text) + ' <span class="k">· found ' + esc(p.at) + '</span>' +
+            (p.current ? '<br><span class="k">now shows: ' + esc(p.current) + '</span>' : '') +
+            '<br><button data-st="yes" data-f="' + esc(p.folder) + '">ยืนยัน</button> <button data-st="no" data-f="' + esc(p.folder) + '">ไม่ใช้</button></li>';
         }).join('') + '</ul>' : '');
     }).join('');
     var all = d.summary && d.summary.notices ? d.summary.notices.all : [];
@@ -333,6 +340,17 @@
     });
     $('chart').innerHTML = h;
   }
+
+  $('sum').addEventListener('click', function (ev) {
+    var b = ev.target.closest('button[data-st]');
+    if (!b) return;
+    var yes = b.getAttribute('data-st') === 'yes';
+    if (!yes && !confirm('Drop this detected status? The complainant never sees it.')) return;
+    b.disabled = true;
+    post({ action: 'status', k: cfg.k, folder: b.getAttribute('data-f'), decision: yes ? 'yes' : 'no', date: current })
+      .then(function (j) { render(j.day); })
+      .catch(function (e) { alert(e.message); b.disabled = false; });
+  });
 
   $('list').addEventListener('click', function (ev) {
     var b = ev.target.closest('button[data-from]');

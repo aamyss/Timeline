@@ -24,26 +24,6 @@ function normCode_(s) {
   return c.length === 8 ? c.slice(0, 4) + '-' + c.slice(4) : '';
 }
 
-/** Adds a row (with a LINE code) for every Inquiry Copilot case folder in the log; fills missing codes. */
-function syncCasesTab_(ctx) {
-  ctx = ctx || dayCtx_();
-  var sh = ss_().getSheetByName('Cases');
-  if (!sh) return 0;
-  var have = {};
-  ctx.caseList.forEach(function (c) {
-    have[c.folder] = true;
-    if (!c.code && Core.caseFolderInfo(c.folder)) sh.getRange(c.row, 5).setNumberFormat('@').setValue(newCaseCode_());
-  });
-  var add = Object.keys(ctx.cases).sort().filter(function (f) { return !have[f] && !ctx.cases[f].deleted; })
-    .map(function (f) { return [f, '', '', '', newCaseCode_(), '', '']; });
-  if (add.length) {
-    sh.getRange(sh.getLastRow() + 1, 1, add.length, CASE_HEADERS.length).setNumberFormat('@').setValues(add.map(function (r) {
-      return r.map(cellSafe_);
-    }));
-  }
-  return add.length;
-}
-
 function lineCfg_() {
   var p = props_();
   return { liffId: p.getProperty('LINE_LIFF_ID') || '', channelId: p.getProperty('LINE_CHANNEL_ID') || '',
@@ -149,29 +129,10 @@ function publicCase_(ctx, folder) {
     type: k.type || (Core.caseFolderInfo(folder) || {}).type || '',
     reported: k.start,
     status: info.status || '',
-    statusAt: info.status ? info.statusAt || '' : '',
+    statusAt: info.status ? String(info.statusAt || '').slice(0, 10) : '',
     notices: (k.notices || []).slice(),
     closed: info.closed || ''
   };
-}
-
-/** For him only (sheet menu): every date worked on a case and its notice status, to answer a complainant's request. */
-function caseReport_(query, ctx) {
-  ctx = ctx || dayCtx_();
-  var q = String(query || '').trim();
-  var code = normCode_(q);
-  var hit = ctx.caseList.filter(function (c) {
-    return (code && c.code === code) || (q && (c.caseNo === q || c.folder === q));
-  })[0];
-  var folder = hit ? hit.folder : (ctx.cases[q] ? q : '');
-  if (!folder) return null;
-  var k = ctx.cases[folder] || { start: '', type: '', workDates: {}, last: '', notices: [] };
-  var info = ctx.caseInfo[folder] || {};
-  var today = Core.toBkkIso(new Date()).slice(0, 10);
-  var st = k.start ? Core.noticeStatus(k.start, k.notices, today, info.closed) : { next: null };
-  return { folder: folder, caseNo: info.caseNo || '', code: info.code || '', start: k.start, type: k.type,
-    workDates: Object.keys(k.workDates || {}).sort(), notices: k.notices || [], closed: info.closed || '',
-    next: st.next, lastWorked: k.last ? k.last.slice(0, 10) : '', status: info.status || '', statusAt: info.statusAt || '' };
 }
 
 function linePost_(body) {

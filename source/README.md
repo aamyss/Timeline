@@ -26,7 +26,7 @@ No Microsoft setup is needed.
 3. **Project Settings** (gear) → tick **Show "appsscript.json" manifest file**.
 4. Back in **Editor**, replace the contents of `appsscript.json` with the one from the `src` folder.
 5. Add the other files with **+ → Script** (or **+ → HTML** for Index). Use exactly these names; Apps Script adds `.gs`/`.html` itself:
-   `Core`, `Config`, `Log`, `Collect`, `WebApp`, `Report`, `Menu`, `Line` and `Index` (HTML). Paste each file's contents.
+   `Core`, `Config`, `Log`, `Collect`, `WebApp`, `Report`, `Menu`, `Line`, `Cases` and `Index` (HTML). Paste each file's contents.
 6. `Code.gs` is the empty file Google creates in every new project (it's not in this zip). Delete it.
 7. Save, choose `setup` in the function dropdown, and click **Run**. Approve the permissions. Google will warn "Google hasn't verified this app". That's normal for your own script: **Advanced → Go to Work timeline**.
 8. Reload the sheet. A **Work timeline** menu appears.
@@ -84,7 +84,11 @@ End earlier than start means an overnight shift. Until a month's roster is enter
 The **Cases** tab fills itself every hour: one row per Inquiry Copilot case folder, each with a `line_code`.
 - `case_no`: type the real case number, e.g. `2026-11-05_1510-ลักสายไฟ_โรงงาน_บริษัทตัวอย่าง` → `456/2569`. The app and the LINE page then show the number instead of the folder name.
 - `closed`: the date the file went to the prosecutor or the case ended (e.g. `2026-12-01`). The last progress notice is due that day.
-- `status`: what's happening in the case now (pick from the list, e.g. ส่งหมายเรียก, รอเอกสารจากธนาคาร, or type your own). The complainant sees it on the LINE page; `status_at` fills itself with the date you changed it. Keep it short and free of names.
+- **Case status** (columns F–L): the complainant sees only `status` on the LINE page.
+  - Every hour the script looks at what appeared in each Inquiry Copilot case folder (หมายเรียกพยานเอกสาร, ส่งของกลางเพื่อตรวจพิสูจน์, ผัดฟ้อง-ฝากขัง, คำให้การผู้ต้องหา, ปจว, …; the rules are `STATUS_RULES` in Core.gs) and puts the latest step in `detected` / `detected_at`, waiting for you.
+  - Confirm it with **ยืนยัน** in the `confirm` column, or with the button on the app's summary card. It becomes the status and keeps the date it was first detected (`status_at`); `confirmed_at` is when you confirmed. **ไม่ใช้** drops it and it isn't offered again.
+  - You can also pick or type a status yourself in `status`; then both dates are the time you typed it.
+  - Every status is logged (kind `case_status`, hash-chained), so **Case report** gives the whole history with both dates. Keep status text short and free of names.
 - `line_code`: give it only to the complainant of that case (for example, write it on the progress-notice letter). If a code leaks, clear the cell: the next hourly run makes a new code and everyone who followed with the old one loses access.
 
 When a complainant asks for the dates you worked on their case or the next notice date, use **Work timeline → Case report**: enter their code or case number and copy the Thai text it gives you.
@@ -102,8 +106,8 @@ A notice counts as sent when a file whose name contains a `NOTICE_WORDS` word ap
 
 ## LINE page (v10)
 `line/index.html` in the GitHub repo is a LIFF page for the work LINE OA, with two tabs:
-- **ผลงาน**: totals only (on-duty hours, work outside shifts, cases, documents) for this month, last month and since the roster began. Off until you switch it on (ask your ผกก. first).
-- **คดีของฉัน**: a complainant enters the case's `line_code` once. They then see the case number and type, the complaint date, the progress notices sent, the date the file went to the prosecutor and the status you set in the Cases tab. Not the list of work dates or the next due date (you give those on request with **Case report**), and never file names, names of people or times of day. Their LINE sign-in is checked with LINE's server; only a one-way hash of their LINE ID is kept (Links tab). Five wrong codes lock them out for an hour.
+- **งานที่ได้ทำไปแล้ว** (was ผลงาน): totals only (on-duty hours, work outside shifts, cases, documents) for this month, last month and since the roster began. Off until you switch it on (ask your ผกก. first).
+- **ติดตามคดีของคุณ** (was คดีของฉัน): a complainant enters the case's `line_code` once. They then see the case number and type, the complaint date, the progress notices sent, the date the file went to the prosecutor and the status you set in the Cases tab. Not the list of work dates or the next due date (you give those on request with **Case report**), and never file names, names of people or times of day. Their LINE sign-in is checked with LINE's server; only a one-way hash of their LINE ID is kept (Links tab). Five wrong codes lock them out for an hour.
 
 It sends no LINE messages, so it uses none of the free plan's 300 pushes.
 
@@ -143,7 +147,7 @@ After updating the script, run **Work timeline → Set up** once more. It adds t
 - **Verify log**: recompute every hash and compare with the Seals tab.
 - **Update Cases tab**: add new case folders now (it also runs every hour).
 - **LINE page setup**: LIFF ID, LINE Login channel ID, public totals on/off.
-- **Case report (for a complainant)**: work dates, notices and next due date for one case, as Thai text to copy.
+- **Case report (for a complainant)**: work dates, notices, next due date and the status history for one case, as Thai text to copy.
 
 ## Files
 | File | What it does |
@@ -156,6 +160,7 @@ After updating the script, run **Work timeline → Set up** once more. It adds t
 | `src/Index.html` | Fallback day view inside Google (link with `?k=` key) |
 | `src/Report.gs` | Graphical day timeline in the nightly email |
 | `src/Menu.gs` | Sheet menu |
+| `src/Cases.gs` | Cases tab: codes, detected status, confirm, status history, Case report data |
 | `src/Line.gs` | LINE page API: public totals, case codes, LINE sign-in check |
 | `../line/index.html` | The LINE page (LIFF), served by GitHub Pages |
 | `pc/install.cmd` | Installs the PC reporter |

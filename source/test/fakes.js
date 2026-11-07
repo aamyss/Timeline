@@ -36,6 +36,7 @@ function makeEnv() {
       return this;
     }
     setValue(x) { return this.setValues([[x]]); }
+    getValue() { return this.getValues()[0][0]; }
     clearContent() { for (let i = 0; i < this.nr; i++) { const row = this.sh.data[this.r - 1 + i]; if (row) for (let j = 0; j < this.nc; j++) row[this.c - 1 + j] = ''; } return this; }
     setNumberFormat() { return this; } setFontWeight() { return this; } setNote() { return this; } setDataValidation() { return this; }
     getSheet() { return this.sh; } getRow() { return this.r; } getColumn() { return this.c; } getNumRows() { return this.nr; } getNumColumns() { return this.nc; }
@@ -100,7 +101,7 @@ function makeEnv() {
     ContentService: { MimeType: { JSON: 'json' }, createTextOutput: t => ({ text: t, setMimeType() { return this; } }) }
   };
   vm.createContext(env);
-  const code = ['Core.gs', 'Config.gs', 'Log.gs', 'Collect.gs', 'WebApp.gs', 'Menu.gs', 'Report.gs', 'Line.gs']
+  const code = ['Core.gs', 'Config.gs', 'Log.gs', 'Collect.gs', 'WebApp.gs', 'Menu.gs', 'Report.gs', 'Line.gs', 'Cases.gs']
     .map(f => fs.readFileSync(path.join(SRC, f), 'utf8').replace("if (typeof module !== 'undefined') module.exports = Core;", '')).join('\n');
   vm.runInContext(code, env, { filename: 'project.gs' });
   return { env, ss, props, sent, cal, calChanges };

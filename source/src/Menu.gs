@@ -19,20 +19,6 @@ function onOpen() {
 
 function alert_(msg) { SpreadsheetApp.getUi().alert(msg); }
 
-/** Simple trigger: when a case's status changes in the Cases tab, stamp the date next to it. */
-function onEdit(e) {
-  if (!e || !e.range) return;
-  var sh = e.range.getSheet();
-  if (sh.getName() !== 'Cases') return;
-  var c0 = e.range.getColumn(), c1 = c0 + e.range.getNumColumns() - 1;
-  if (c0 > 6 || c1 < 6) return;
-  var r0 = Math.max(2, e.range.getRow()), n = e.range.getRow() + e.range.getNumRows() - r0;
-  if (n < 1) return;
-  var today = Core.toBkkIso(new Date()).slice(0, 10);
-  var vals = sh.getRange(r0, 6, n, 1).getValues().map(function (r) { return [String(r[0]).trim() ? today : '']; });
-  sh.getRange(r0, 7, n, 1).setNumberFormat('@').setValues(vals);
-}
-
 function menuSetup() { alert_(setup()); }
 
 function menuCollect() { alert_(collectAll() || 'Done.'); }
@@ -64,13 +50,17 @@ function menuCaseReport() {
     'แจ้งความคืบหน้าแล้ว: ' + (c.notices.length ? c.notices.map(function (d, i) { return 'ครั้งที่ ' + (i + 1) + ' ' + th(d); }).join(', ') : 'ยังไม่มี'),
     'แจ้งครั้งถัดไป: ' + (!c.next ? '—' : c.next.due ? 'ครั้งที่ ' + c.next.n + ' ภายใน ' + th(c.next.due) : 'ครั้งที่ ' + c.next.n + ' เมื่อส่งสำนวนให้พนักงานอัยการ'),
     c.closed ? 'ส่งสำนวน: ' + th(c.closed) : '',
-    c.status ? 'สถานะ: ' + c.status + (c.statusAt ? ' (' + th(c.statusAt) + ')' : '') : '',
+    c.history.length ? 'ความคืบหน้า:\n' + c.history.map(function (h) {
+      return '• ' + th(h.at.slice(0, 10)) + ' ' + h.text + (h.confirmed && h.confirmed.slice(0, 10) !== h.at.slice(0, 10) ? ' (ยืนยัน ' + th(h.confirmed.slice(0, 10)) + ')' : '');
+    }).join('\n') : '',
     'วันที่ดำเนินการในคดี (' + c.workDates.length + ' วัน): ' + c.workDates.map(th).join(', ')
   ].filter(String).join('\n');
   var html = HtmlService.createHtmlOutput('<div style="font-family:sans-serif;font-size:13px">' +
     '<div style="color:#555;margin-bottom:6px">Folder: ' + esc_(c.folder) + '</div>' +
     '<textarea readonly onclick="this.select()" style="width:100%;height:300px;font-size:14px">' + esc_(lines) + '</textarea>' +
-    '<div style="color:#555;margin-top:6px">Check it before sending. Work dates come from the log (files, notes, place visits), not the calendar.</div></div>')
+    (c.pending ? '<div style="color:#8a5300;margin-top:6px">Waiting for you (not in the text): ' + esc_(c.pending.text) + ' · detected ' + esc_(c.pending.at) + '</div>' : '') +
+    '<div style="color:#555;margin-top:6px">Check it before sending. Work dates come from the log (files, notes, place visits), not the calendar. ' +
+    'Progress dates are when it happened; "ยืนยัน" dates are when you confirmed a step found in the case folder.</div></div>')
     .setWidth(520).setHeight(420);
   ui.showModalDialog(html, 'Case report');
 }
@@ -88,8 +78,8 @@ function menuLine() {
     '<label><input type="checkbox" id="pub"> Show work totals publicly (only after your ผกก. agrees)</label>' +
     '<p><button id="save" style="font-size:14px;padding:6px 14px">Save</button> <span id="msg" style="color:#1d7a4f"></span></p>' +
     '<div id="links" style="display:none"><p><b>3. Rich menu links</b> in LINE Official Account Manager:</p>' +
-    '<div style="font-size:12px;color:#555">ผลงาน</div><textarea id="l1" readonly rows="1" onclick="this.select()" style="width:100%;font-size:12px;font-family:monospace"></textarea>' +
-    '<div style="font-size:12px;color:#555">คดีของฉัน</div><textarea id="l2" readonly rows="1" onclick="this.select()" style="width:100%;font-size:12px;font-family:monospace"></textarea></div>' +
+    '<div style="font-size:12px;color:#555">งานที่ได้ทำไปแล้ว</div><textarea id="l1" readonly rows="1" onclick="this.select()" style="width:100%;font-size:12px;font-family:monospace"></textarea>' +
+    '<div style="font-size:12px;color:#555">ติดตามคดีของคุณ</div><textarea id="l2" readonly rows="1" onclick="this.select()" style="width:100%;font-size:12px;font-family:monospace"></textarea></div>' +
     '</div><script>' +
     'function show(i){document.getElementById("ep").value=i.endpoint||"Set the web app URL first";document.getElementById("liff").value=i.liffId;' +
     'document.getElementById("ch").value=i.channelId;document.getElementById("pub").checked=i.publicStats;' +

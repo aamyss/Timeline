@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex">
-<title>ผลงานและติดตามคดี</title>
+<title>งานที่ได้ทำไปแล้ว · ติดตามคดีของคุณ</title>
 <style>
   :root { --bg:#f4f5f4; --fg:#1f1f1f; --muted:#6b6b6b; --line:#e3e3e0; --card:#fff; --accent:#06c755; --accentfg:#fff;
     --amber:#8a5300; --amberbg:#fdf0d8; --red:#a32d2d; --chip:#eef0ee; }
@@ -16,7 +16,7 @@
   body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,"Noto Sans Thai",sans-serif; background:var(--bg); color:var(--fg); font-size:15px; line-height:1.5; -webkit-text-size-adjust:100%; }
   .wrap { max-width:560px; margin:0 auto; padding:calc(10px + env(safe-area-inset-top)) 14px calc(32px + env(safe-area-inset-bottom)); }
   .tabs { display:grid; grid-template-columns:1fr 1fr; background:var(--card); border-radius:12px; padding:4px; gap:4px; position:sticky; top:6px; z-index:2; box-shadow:0 1px 3px rgba(0,0,0,.06); }
-  .tabs button { border:0; background:none; color:var(--muted); font:inherit; font-weight:600; padding:9px; border-radius:9px; }
+  .tabs button { border:0; background:none; color:var(--muted); font:inherit; font-size:14px; line-height:1.3; font-weight:600; padding:9px 4px; border-radius:9px; }
   .tabs button.on { background:var(--accent); color:var(--accentfg); }
   .card { background:var(--card); border-radius:14px; padding:14px; margin-top:12px; }
   h2 { font-size:16px; margin:0 0 10px; }
@@ -39,8 +39,8 @@
 <body>
 <div class="wrap">
   <div class="tabs" role="tablist">
-    <button id="tStats" role="tab" class="on">ผลงาน</button>
-    <button id="tCases" role="tab">คดีของฉัน</button>
+    <button id="tStats" role="tab" class="on">งานที่ได้ทำไปแล้ว</button>
+    <button id="tCases" role="tab">ติดตามคดีของคุณ</button>
   </div>
 
   <div id="stats"><div class="card muted">กำลังโหลด…</div></div>
@@ -112,7 +112,7 @@
 
   /* ---------- ผลงาน: totals only ---------- */
   function renderStats(j) {
-    if (j.off) { $('stats').innerHTML = '<div class="card muted">ยังไม่เปิดเผยข้อมูลผลงาน</div>'; return; }
+    if (j.off) { $('stats').innerHTML = '<div class="card muted">ยังไม่เปิดเผยข้อมูลงานที่ได้ทำไปแล้ว</div>'; return; }
     var label = { month: function (p) { return 'เดือนนี้ · ' + thMonth(p.label); }, last: function (p) { return thMonth(p.label); },
       all: function (p) { return 'ตั้งแต่ ' + thMonth(p.label); } };
     $('stats').innerHTML = j.periods.map(function (p) {

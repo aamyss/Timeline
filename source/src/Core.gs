@@ -478,7 +478,7 @@ var Core = (function () {
     // Work outside shifts: each record covers POINT_MIN minutes; ranged notes and place visits their span.
     var spans = [];
     (d.entries || []).forEach(function (e) {
-      if (/^calendar_|^location_checkin$|^place_/.test(e.kind)) return;   // plans; visits are added below
+      if (/^calendar_|^location_checkin$|^place_|^case_status$/.test(e.kind)) return;   // plans, status notes; visits added below
       var a = ms(e.t);
       var b = e.kind === 'note' && e.tEnd ? ms(e.tEnd) : a + POINT_MIN * MIN;
       spans.push([a, Math.max(b, a + POINT_MIN * MIN)]);
@@ -494,7 +494,7 @@ var Core = (function () {
     // Cases, files, photos, calendar.
     var cases = {}, created = {}, edited = {}, deleted = {}, renamed = 0, taken = 0, gps = 0, added = 0, cal = [];
     (d.entries || []).forEach(function (e) {
-      if (e.caseNo && !/^calendar_/.test(e.kind)) cases[e.caseNo] = true;
+      if (e.caseNo && !/^calendar_|^case_status$/.test(e.kind)) cases[e.caseNo] = true;
       var doc = isDocPath(e.path);
       if (e.kind === 'file_created') { if (e.isPhoto) added++; else if (doc) created[e.path] = true; }
       else if (e.kind === 'file_modified' && doc) edited[e.path] = true;
@@ -546,6 +546,7 @@ var Core = (function () {
       return v.place + ' ' + v.start.slice(11, 16) + '–' + (v.end ? (v.end.slice(0, 10) === v.start.slice(0, 10) ? v.end.slice(11, 16) : 'next day') : '?');
     }).join(' · ') });
     if (s.calendar.length) L.push({ key: 'calendar', label: 'Calendar', text: s.calendar.length + ' — ' + s.calendar.slice(0, 3).join(' · ') + (s.calendar.length > 3 ? ' · +' + (s.calendar.length - 3) : '') });
+    if (ctx.pending) L.push({ key: 'pending', label: 'Status to confirm', warn: true, text: ctx.pending + ' case' + (ctx.pending > 1 ? 's' : '') });
     var n = ctx.notices;
     if (n && (n.overdue || n.soon)) {
       L.push({ key: 'notices', label: 'Progress notices', warn: !!n.overdue,
@@ -555,6 +556,57 @@ var Core = (function () {
   }
 
   /* ---------- cases and progress notices (แจ้งความคืบหน้า) ---------- */
+
+  /**
+   * Case steps detected from what appears inside an Inquiry Copilot case folder. Words are matched against the
+   * path below the case folder (sub-folder and file names), based on how Inquiry Copilot names things
+   * (หมายเรียกพยานเอกสาร/, รายการส่งตรวจของกลาง/ส่งของกลางเพื่อตรวจพิสูจน์…, ผู้ต้องหา/…/ผัดฟ้อง-ฝากขัง, …) and the
+   * steps in การสอบสวนภาคปฏิบัติ 2566. Order = the usual order of an inquiry (used to break ties).
+   * text is what the complainant sees once he confirms it, so it never names anyone.
+   */
+  var STATUS_RULES = [
+    { key: 'complaint', text: 'รับคำร้องทุกข์แล้ว', words: ['ปจว', 'บันทึกประจำวัน'] },
+    { key: 'scene', text: 'ตรวจสถานที่เกิดเหตุแล้ว', words: ['บันทึกการตรวจสถานที่เกิดเหตุ', 'ภาพตรวจที่เกิดเหตุ', 'ตรวจที่เกิดเหตุ', 'ตรวจเหตุ', 'แผนที่เกิดเหตุ'] },
+    { key: 'victim', text: 'สอบปากคำผู้กล่าวหาแล้ว', words: ['คำให้การผู้กล่าวหา', 'คำให้การผู้เสียหาย', 'คำให้การผู้ร้องทุกข์'] },
+    { key: 'witness', text: 'สอบปากคำพยานแล้ว', words: ['คำให้การพยาน'] },
+    { key: 'docs', text: 'ออกหมายเรียกพยานเอกสาร รอเอกสารตอบกลับ', words: ['หมายเรียกพยานเอกสาร'] },
+    { key: 'letter', text: 'มีหนังสือถึงหน่วยงานที่เกี่ยวข้อง รอตอบกลับ', words: ['หนังสือโต้ตอบกับหน่วยงานอื่น', 'หนังสือถึง'] },
+    { key: 'forensic', text: 'ส่งของกลางตรวจพิสูจน์ รอผล', words: ['ส่งของกลางเพื่อตรวจพิสูจน์', 'ส่งของกลางไปตรวจพิสูจน์', 'ส่งตรวจพิสูจน์'] },
+    { key: 'summons', text: 'ออกหมายเรียกผู้ต้องหา', words: ['หมายเรียกผู้ต้องหา'] },
+    { key: 'warrant', text: 'ขอศาลออกหมายจับ', words: ['หมายจับ'] },
+    { key: 'charged', text: 'แจ้งข้อกล่าวหาและสอบปากคำผู้ต้องหาแล้ว', words: ['คำให้การผู้ต้องหา'] },
+    { key: 'custody', text: 'ยื่นคำร้องผัดฟ้อง/ฝากขังต่อศาล', words: ['ผัดฟ้อง', 'ฝากขัง'] },
+    { key: 'bail', text: 'ดำเนินการเรื่องการปล่อยชั่วคราวผู้ต้องหา', words: ['ปล่อยชั่วคราว', 'ปล่อยตัวชั่วคราว'] },
+    { key: 'fine', text: 'เปรียบเทียบปรับแล้ว', words: ['เปรียบเทียบปรับ'] },
+    { key: 'summary', text: 'สรุปสำนวนการสอบสวน', words: ['สรุปสำนวน', 'บันทึกความเห็น'] },
+    { key: 'prosecutor', text: 'ส่งสำนวนให้พนักงานอัยการแล้ว', words: ['ส่งสำนวน', 'นำส่งสำนวน'] }
+  ];
+  // Things he can pick by hand that files can't show.
+  var MANUAL_STATUSES = ['รวบรวมพยานหลักฐาน', 'ติดตามตัวผู้ต้องหา', 'เสนอสำนวนต่อผู้บังคับบัญชา',
+    'พนักงานอัยการสั่งสอบสวนเพิ่มเติม', 'รอผลการพิจารณาของพนักงานอัยการ', 'คดีเสร็จสิ้น'];
+
+  /** Path below the case folder -> matching rule keys (Inquiry Copilot's own files ignored). */
+  function matchSteps(relPath) {
+    var parts = String(relPath || '').split('/');
+    if (parts.indexOf('__res__') >= 0 || parts.indexOf('__temp__') >= 0) return [];
+    if (parts[parts.length - 1] === 'ห้ามลบ' || /^แบบบันทึกการตรวจสำนวน|^แผ่นปะหน้าสำนวน/.test(parts[parts.length - 1])) return [];
+    var p = parts.join('/');
+    return STATUS_RULES.filter(function (r) {
+      return r.words.some(function (w) { return p.indexOf(w) >= 0; });
+    }).map(function (r) { return r.key; });
+  }
+
+  /** Latest detected step of a case: {key, text, at} or null. steps = {key: firstSeenIso}. */
+  function latestStep(steps) {
+    var best = null;
+    STATUS_RULES.forEach(function (r, i) {
+      var at = steps && steps[r.key];
+      if (!at) return;
+      if (!best || at > best.at || (at === best.at && i > best.rank)) best = { key: r.key, text: r.text, at: at, rank: i };
+    });
+    if (best) delete best.rank;
+    return best;
+  }
 
   /** Inquiry Copilot case folder "2026-11-05_0939-จราจร_ชื่อ" -> {start, type}; anything else -> null. */
   function caseFolderInfo(folder) {
@@ -589,7 +641,7 @@ var Core = (function () {
     var get = function (folder) {
       var info = caseFolderInfo(folder);
       if (!info) return null;
-      if (!cases[folder]) cases[folder] = { folder: folder, start: info.start, type: info.type, deleted: false, workDates: {}, last: '', notices: [], seen: {} };
+      if (!cases[folder]) cases[folder] = { folder: folder, start: info.start, type: info.type, deleted: false, workDates: {}, last: '', notices: [], seen: {}, steps: {}, statuses: [] };
       return cases[folder];
     };
     rows.slice().sort(function (a, b) { return a.event_time < b.event_time ? -1 : a.event_time > b.event_time ? 1 : 0; }).forEach(function (r) {
@@ -597,6 +649,7 @@ var Core = (function () {
       try { d = JSON.parse(r.detail || '{}'); } catch (e) { /* plain */ }
       var folder = d.path ? caseFolderOf(d.path, markers) : '';
       if (!folder && r.case_no && caseNoToFolder && caseNoToFolder[r.case_no]) folder = caseNoToFolder[r.case_no];
+      if (!folder && r.kind === 'case_status') folder = r.case_no;
       var c = folder && get(folder);
       if (!c) return;
       var date = r.event_time.slice(0, 10);
@@ -604,7 +657,12 @@ var Core = (function () {
         c.deleted = r.kind === 'folder_deleted';
         if (c.deleted) return;
       }
+      if (r.kind === 'case_status') { c.statuses.push({ at: r.event_time, text: r.title, confirmed: d.confirmed_at || r.source_time, via: d.via || '' }); return; }
       if (/^calendar_/.test(r.kind)) return;   // plans, not work
+      if (d.path && /_(created|renamed)$/.test(r.kind)) {
+        var rel = d.path.slice(d.path.indexOf('/' + folder + '/') + folder.length + 2);
+        if (d.path.indexOf('/' + folder + '/') >= 0) matchSteps(rel).forEach(function (k) { if (!c.steps[k]) c.steps[k] = r.event_time; });
+      }
       c.workDates[date] = true;
       if (r.event_time > c.last) c.last = r.event_time;
       var name = d.path ? d.path.split('/').pop() : '';
@@ -614,7 +672,7 @@ var Core = (function () {
         c.notices.push(date);
       }
     });
-    Object.keys(cases).forEach(function (k) { cases[k].notices.sort(); delete cases[k].seen; });
+    Object.keys(cases).forEach(function (k) { cases[k].notices.sort(); delete cases[k].seen; cases[k].detected = latestStep(cases[k].steps); });
     return cases;
   }
 
@@ -665,7 +723,8 @@ var Core = (function () {
     findGaps: findGaps, groupEntries: groupEntries, dayStrip: dayStrip, canonical: canonical, csvLine: csvLine,
     mergeSpans: mergeSpans, subtractSpans: subtractSpans, isDocPath: isDocPath, fmtDur: fmtDur, fmtDay: fmtDay,
     daySummary: daySummary, summaryLines: summaryLines, caseFolderInfo: caseFolderInfo, caseFolderOf: caseFolderOf,
-    addMonths: addMonths, daysBetween: daysBetween, collectCases: collectCases, noticeStatus: noticeStatus
+    addMonths: addMonths, daysBetween: daysBetween, collectCases: collectCases, noticeStatus: noticeStatus,
+    STATUS_RULES: STATUS_RULES, MANUAL_STATUSES: MANUAL_STATUSES, matchSteps: matchSteps, latestStep: latestStep
   };
 })();
 
