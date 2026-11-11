@@ -626,9 +626,10 @@ var Core = (function () {
   /**
    * Documents in Inquiry Copilot case folders, for the public totals: {key: first time it appeared}.
    * key = case folder + path below it, so the same file in two places (old OneDrive copy and D:) counts once.
+   * cases (optional, from collectCases): files made while the case folder had an older name count under its new name.
    * Not counted: photos, Inquiry Copilot's own files (__res__, __temp__, ห้ามลบ) and its automatic cover sheets.
    */
-  function caseDocuments(rows, markers) {
+  function caseDocuments(rows, markers, cases) {
     var docs = {};
     rows.forEach(function (r) {
       if (r.kind !== 'file_created') return;
@@ -639,7 +640,8 @@ var Core = (function () {
       var rel = d.path.slice(d.path.indexOf('/' + folder + '/') + folder.length + 2);
       if (d.path.indexOf('/' + folder + '/') < 0 || !isDocPath(rel)) return;
       if (/^(แบบบันทึกการตรวจสำนวน|แผ่นปะหน้าสำนวน)/.test(rel.split('/').pop())) return;
-      var key = folder + '/' + rel;
+      var to = cases && cases[folder] && cases[folder].renamedTo;   // a file made under an old name of the case
+      var key = (to || folder) + '/' + rel;
       if (!docs[key] || r.event_time < docs[key]) docs[key] = r.event_time;
     });
     return docs;
@@ -656,6 +658,7 @@ var Core = (function () {
 
   /**
    * Every Inquiry Copilot case seen in the log: {folder: {folder, start, type, deleted, workDates{}, last, notices[]}}.
+   * A renamed case folder: the old name has deleted + renamedTo, the new one formerly[] and everything merged in.
    * rows: log rows (objects). noticeWords: file-name words that mark a progress-notice letter.
    * caseNoToFolder: {'12/2569': folder} from the Cases tab, so notes and calendar items typed with the number count.
    */
@@ -677,14 +680,21 @@ var Core = (function () {
       if (!c) return;
       var date = r.event_time.slice(0, 10);
       // The same case folder can exist in more than one place (e.g. an old OneDrive copy and the D: storage).
-      // It only counts as deleted when every copy seen has been deleted.
+      // It only counts as deleted when every copy seen has been deleted. A copy is alive after something appeared
+      // or changed in it; only the deletion of the folder itself ends it. Deletions of what was inside (logged in
+      // the same run as the folder's own deletion, in any order) don't bring it back. Times are when Google received
+      // the PC report: a renamed folder keeps its old creation time, so event_time can't order these.
       if (d.path) {
         var at = d.path.indexOf('/' + folder);
         var where = at >= 0 ? d.path.slice(0, at + folder.length + 1) : d.path;
         var self = d.path.split('/').pop() === folder && /^folder_/.test(r.kind);
-        c.copies[where] = !(self && r.kind === 'folder_deleted');
-        c.deleted = Object.keys(c.copies).every(function (w) { return !c.copies[w]; });
-        if (self && r.kind === 'folder_deleted') return;
+        var gone = self && r.kind === 'folder_deleted';
+        var seenAt = (PC_KINDS.indexOf(r.kind) >= 0 && r.source_time) || r.event_time;
+        var was = c.copies[where];
+        if (gone || !/_deleted$/.test(r.kind) || !was) {
+          if (!was || seenAt > was.at || (seenAt === was.at && gone)) c.copies[where] = { alive: !gone, at: seenAt };
+        }
+        if (gone) return;
       }
       if (r.kind === 'case_status') { c.statuses.push({ at: r.event_time, text: r.title, confirmed: d.confirmed_at || r.source_time, via: d.via || '' }); return; }
       if (/^calendar_/.test(r.kind)) return;   // plans, not work
@@ -703,8 +713,45 @@ var Core = (function () {
         c.notices.push(date);
       }
     });
-    Object.keys(cases).forEach(function (k) { cases[k].notices.sort(); delete cases[k].seen; delete cases[k].copies; cases[k].detected = latestStep(cases[k].steps); });
+    Object.keys(cases).forEach(function (k) {
+      var c = cases[k], w = Object.keys(c.copies);
+      c.deleted = w.length > 0 && w.every(function (x) { return !c.copies[x].alive; });
+      c.parents = w.map(function (x) { return x.slice(0, x.length - k.length - 1); });
+    });
+    followRenames(cases);
+    Object.keys(cases).forEach(function (k) {
+      var c = cases[k];
+      c.notices.sort(); delete c.seen; delete c.copies; delete c.parents;
+      c.detected = latestStep(c.steps);
+    });
     return cases;
+  }
+
+  /**
+   * Inquiry Copilot names a case folder "date_time-type_names" and renames it when the case details change.
+   * The PC sees that as one folder deleted and another created. A deleted case folder whose date_time matches
+   * exactly one live case folder in the same place (same profile) is the same case under its new name:
+   * its work, steps, notices and statuses move to the new name (renamedTo / formerly).
+   */
+  function followRenames(cases) {
+    var key = function (f) { return f.slice(0, 15); };   // "2026-11-06_1720"
+    Object.keys(cases).sort().forEach(function (a) {
+      var A = cases[a];
+      if (!A.deleted) return;
+      var hits = Object.keys(cases).filter(function (b) {
+        return b !== a && !cases[b].deleted && key(b) === key(a) &&
+          cases[b].parents.some(function (p) { return A.parents.indexOf(p) >= 0; });
+      });
+      if (hits.length !== 1) return;
+      var B = cases[hits[0]];
+      A.renamedTo = B.folder;
+      B.formerly = (B.formerly || []).concat([a], A.formerly || []);
+      Object.keys(A.steps).forEach(function (s) { if (!B.steps[s] || A.steps[s] < B.steps[s]) B.steps[s] = A.steps[s]; });
+      Object.keys(A.workDates).forEach(function (dd) { B.workDates[dd] = true; });
+      if (A.last > B.last) B.last = A.last;
+      B.notices = B.notices.concat(A.notices);
+      B.statuses = B.statuses.concat(A.statuses).sort(function (x, y) { return x.at < y.at ? -1 : x.at > y.at ? 1 : 0; });
+    });
   }
 
   /**

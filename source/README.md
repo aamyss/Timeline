@@ -146,7 +146,8 @@ After updating the script, run **Work timeline → Set up** once more. It adds t
 - **Collect calendars now**: run the hourly calendar check immediately.
 - **Seal yesterday now**: send yesterday's seal if the nightly one didn't run.
 - **Verify log**: recompute every hash and compare with the Seals tab.
-- **Update Cases tab**: add new case folders now (it also runs every hour).
+- **Update Cases tab**: add new case folders now (it also runs every hour). It also lists old folder names of renamed cases, deleted case folders, and Cases-tab rows whose folder no longer exists (safe to delete; the log keeps their history).
+  - **Renamed case folders (v15):** Inquiry Copilot renames a case folder when the case details change. A case folder that disappears while one with the same `date_time` appears in the same profile is the same case: its row follows the new name and keeps its LINE code, status, case number and followers; steps keep their first date.
 - **LINE page setup**: LIFF ID, LINE Login channel ID, public totals on/off.
 - **Case report (for a complainant)**: work dates, notices, next due date and the status history for one case, as Thai text to copy.
 

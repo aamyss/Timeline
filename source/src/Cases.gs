@@ -85,9 +85,15 @@ function readCaseMap_(list) {
   return map;
 }
 
-/** Status history of one case from the log (oldest first): [{at, text, confirmed, via}]. */
+/** The case folder name and any older names it had (Inquiry Copilot renames folders when case details change). */
+function caseNames_(ctx, folder) {
+  return [folder].concat((ctx.cases[folder] && ctx.cases[folder].formerly) || []);
+}
+
+/** Status history of one case from the log (oldest first, old folder names included): [{at, text, confirmed, via}]. */
 function statusHistory_(ctx, folder) {
-  return ctx.allRows.filter(function (r) { return r.kind === 'case_status' && r.case_no === folder; }).map(function (r) {
+  var names = caseNames_(ctx, folder);
+  return ctx.allRows.filter(function (r) { return r.kind === 'case_status' && names.indexOf(r.case_no) >= 0; }).map(function (r) {
     var d = {};
     try { d = JSON.parse(r.detail || '{}'); } catch (e) { /* plain */ }
     return { at: r.event_time, text: r.title, confirmed: d.confirmed_at || r.source_time, via: d.via || '' };
@@ -103,6 +109,7 @@ function syncCasesTab_(ctx) {
   ctx = ctx || dayCtx_();
   var sh = casesTab_();
   var have = {};
+  renameCaseRows_(ctx, sh);
   var detectionOf = function (folder, c) {
     var det = ctx.cases[folder] && ctx.cases[folder].detected;
     if (!det) return null;
@@ -142,16 +149,42 @@ function syncCasesTab_(ctx) {
   return add.length;
 }
 
+/**
+ * A row whose case folder was renamed in Inquiry Copilot follows the new name, keeping its LINE code, status,
+ * case number and followers. Only when the new name has no row of its own; otherwise the old row is reported
+ * in Update Cases tab for him to delete. ctx.renamed = [[old, new]] done this run.
+ */
+function renameCaseRows_(ctx, sh) {
+  ctx.renamed = [];
+  var rowOf = {};
+  ctx.caseList.forEach(function (c) { rowOf[c.folder] = c; });
+  ctx.caseList.forEach(function (c) {
+    var k = ctx.cases[c.folder], to = k && k.renamedTo;
+    if (!to || rowOf[to]) return;
+    sh.getRange(c.row, CC.folder).setNumberFormat('@').setValue(cellSafe_(to));
+    renameLinks_(c.folder, to);
+    ctx.renamed.push([c.folder, to]);
+    delete rowOf[c.folder]; rowOf[to] = c;
+    delete ctx.caseInfo[c.folder]; ctx.caseInfo[to] = c;
+    c.folder = to;
+  });
+}
+
 /** Logs every current status that differs from the last one logged for that case (the status history). */
 function logStatusChanges_(ctx) {
   var last = {};
   ctx.allRows.forEach(function (r) { if (r.kind === 'case_status') last[r.case_no] = r; });
+  var latest = function (folder) {   // the newest logged status under this name or an older name of the case
+    var out = null;
+    caseNames_(ctx, folder).forEach(function (n) { var r = last[n]; if (r && (!out || ctx.allRows.indexOf(r) > ctx.allRows.indexOf(out))) out = r; });
+    return out;
+  };
   var now = Core.toBkkIso(new Date());
   var rows = [];
   ctx.caseList.forEach(function (c) {
     if (!c.status) return;
     var at = stampIso_(c.statusAt) || now;
-    var prev = last[c.folder];
+    var prev = latest(c.folder);
     if (prev && prev.title === c.status && prev.event_time === at) return;
     var confirmed = stampIso_(c.confirmedAt) || now;
     rows.push({

@@ -342,6 +342,45 @@ test('collectCases: work dates, notice letters by file name, deleted folders', (
 });
 
 
+test('v15: a case folder renamed in Inquiry Copilot and back is one case; deletions inside do not revive it', () => {
+  const F = 'แฟ้มคดี', P = 'IC/รอง/' + F + '/';
+  const A = '2026-11-06_1720-โอนเงิน', B = '2026-11-06_1720-โอนเงินผิด';
+  const D = 'หมายเรียกพยานเอกสาร/ธนาคาร_X/หมายเรียกพยานเอกสาร-ธนาคาร.docx', D2 = 'หมายเรียกพยานเอกสาร/ธนาคาร_Y/หมายเรียกพยานเอกสาร-ธนาคาร.docx';
+  const row = (kind, t, path, got, from) => ({ kind, event_time: t, source_time: got || t, case_no: '',
+    detail: JSON.stringify({ path: P + path, from: from ? P + from : undefined }) });
+  const T1 = '2026-11-10T13:05:00+07:00', T2 = '2026-11-10T13:30:00+07:00', made = '2026-11-08T09:54:00+07:00';
+  const rows = [
+    row('folder_created', made, B, '2026-11-08T09:55:00+07:00'),
+    row('file_created', '2026-11-10T12:45:05+07:00', B + '/' + D, '2026-11-10T12:46:00+07:00'),
+    // renamed to A: the PC sees B and its sub-folder deleted (in any order) and A created with B's creation time
+    row('folder_deleted', T1, B), row('folder_deleted', T1, B + '/หมายเรียกพยานเอกสาร'),
+    row('folder_created', made, A, T1), row('file_renamed', T1, A + '/' + D, T1, B + '/' + D),
+    row('file_created', '2026-11-10T13:09:51+07:00', A + '/' + D2, '2026-11-10T13:10:00+07:00'),
+    // and back to B
+    row('folder_deleted', T2, A), row('folder_deleted', T2, A + '/หมายเรียกพยานเอกสาร'), row('folder_deleted', T2, A + '/หมายเรียกพยานเอกสาร/ธนาคาร_Y'),
+    row('folder_created', made, B, T2), row('file_renamed', T2, B + '/' + D, T2, A + '/' + D), row('file_renamed', T2, B + '/' + D2, T2, A + '/' + D2)
+  ];
+  const c = Core.collectCases(rows, [F], [], {});
+  assert.strictEqual(c[B].deleted, false, 'the case folder exists again');
+  assert.strictEqual(c[A].deleted, true, 'sub-folder deletions logged after the folder itself do not bring it back');
+  assert.strictEqual(c[A].renamedTo, B);
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(c[B].formerly)), [A]);
+  assert.strictEqual(c[B].detected.at, '2026-11-10T12:45:05+07:00', 'step keeps its first date across the renames');
+  assert.strictEqual(Object.keys(c).filter(f => !c[f].deleted).length, 1, 'one case');
+  const docs = Core.caseDocuments(rows, [F], c);
+  assert.deepStrictEqual(Object.keys(docs).sort(), [B + '/' + D, B + '/' + D2], 'both summons count, under the case name');
+  // a deleted case is not merged into a different case of the same minute in another profile
+  const o = Core.collectCases([
+    { kind: 'folder_created', event_time: made, case_no: '', detail: JSON.stringify({ path: 'IC/หลัก/' + F + '/' + A }) },
+    { kind: 'folder_deleted', event_time: T1, case_no: '', detail: JSON.stringify({ path: 'IC/หลัก/' + F + '/' + A }) },
+    { kind: 'folder_created', event_time: made, case_no: '', detail: JSON.stringify({ path: P + B }) }
+  ], [F], [], {});
+  assert.ok(o[A].deleted && !o[A].renamedTo, 'other profile: stays a deleted case');
+  // and a folder deleted for good stays deleted even when its sub-folders are logged after it
+  const g = Core.collectCases([row('folder_created', made, A), row('folder_deleted', T1, A), row('folder_deleted', T1, A + '/ผู้กล่าวหา')], [F], [], {});
+  assert.ok(g[A].deleted && !g[A].renamedTo);
+});
+
 test('status rules: Inquiry Copilot folder and file names -> case steps; latest wins', () => {
   assert.deepStrictEqual(Core.matchSteps('หมายเรียกพยานเอกสาร/บริษัท ก_X/หมายเรียกพยานเอกสาร-บริษัท ก.docx'), ['docs']);
   assert.deepStrictEqual(Core.matchSteps('รายการส่งตรวจของกลาง/ส่งของกลางเพื่อตรวจพิสูจน์-ผบก.พฐก._J'), ['forensic']);
@@ -706,6 +745,48 @@ test('v10 LINE: complainant links a case with its code and sees dates only', () 
   for (let i = 0; i < 5; i++) post({ action: 'line_link', idToken: 'good-C', code: 'AAAA-AAA' + i });
   r = post({ action: 'line_link', idToken: 'good-C', code });
   assert.ok(!r.ok && /1 ชั่วโมง/.test(r.error), 'locked out after 5 wrong codes');
+  W.env.UrlFetchApp = { fetch: () => { throw new Error('no network in tests'); } };
+});
+
+test('v15: Cases tab row follows a renamed case folder, keeping its code, status, followers and history', () => {
+  const post = (o) => JSON.parse(run('doPost(' + JSON.stringify({ postData: { contents: JSON.stringify(o) } }) + ')').text);
+  W.env.UrlFetchApp = { fetch: (url, opt) => ({ getResponseCode: () => 200,
+    getContentText: () => JSON.stringify({ sub: 'U' + opt.payload.id_token, aud: opt.payload.client_id }) }) };
+  const iso = (d) => d.toISOString().slice(0, 19) + 'Z';
+  const OLD = 'p2/แฟ้มคดี/2026-11-07_1720-โอนเงินผิด', NEW = 'p2/แฟ้มคดี/2026-11-07_1720-โอนเงินผิด_นางสาวทดสอบ';
+  const doc = '/หมายเรียกพยานเอกสาร/ธนาคาร_Q/หมายเรียกพยานเอกสาร-ธนาคาร.docx';
+  post({ token: W.props.PC_TOKEN, device: 'PC', deviceNow: iso(new Date()), events: [
+    { kind: 'folder_created', root: 'Inquiry Copilot', path: OLD, time: '2026-11-07T10:20:00Z' },
+    { kind: 'file_created', root: 'Inquiry Copilot', path: OLD + doc, time: '2026-11-08T05:45:00Z', sha256: 'q1' }] });
+  run('collectAll()');
+  const before = run('readCases_()');
+  const old = before.find(x => x.folder === OLD.split('/').pop());
+  assert.ok(old);
+  const sh = W.ss.getSheetByName('Cases');
+  sh.getRange(old.row, 2).setValue('900/2569');
+  assert.strictEqual(post({ action: 'line_link', idToken: 'good-R', code: old.code }).cases.length, 1);
+  const logged = () => run('readLog_()').filter(x => x.kind === 'case_status' && /2026-11-07_1720/.test(x.case_no)).length;
+  const n = logged();
+  // Inquiry Copilot renames the folder (names added)
+  post({ token: W.props.PC_TOKEN, device: 'PC', deviceNow: iso(new Date()), events: [
+    { kind: 'folder_deleted', root: 'Inquiry Copilot', path: OLD + '/หมายเรียกพยานเอกสาร' },
+    { kind: 'folder_deleted', root: 'Inquiry Copilot', path: OLD },
+    { kind: 'folder_deleted', root: 'Inquiry Copilot', path: OLD + '/หมายเรียกพยานเอกสาร/ธนาคาร_Q' },
+    { kind: 'folder_created', root: 'Inquiry Copilot', path: NEW, time: '2026-11-07T10:20:00Z' },
+    { kind: 'file_renamed', root: 'Inquiry Copilot', path: NEW + doc, from: OLD + doc, sha256: 'q1' }] });
+  run('collectAll()');
+  const after = run('readCases_()');
+  assert.strictEqual(after.length, before.length, 'no new row');
+  const r = after.find(x => x.row === old.row);
+  assert.deepStrictEqual([r.folder, r.code, r.caseNo, r.status], [NEW.split('/').pop(), old.code, '900/2569', old.status], 'same row, new name, code and status kept');
+  assert.strictEqual(r.detected, old.detected, 'the step keeps its first date, not the rename time');
+  const seen = post({ action: 'line_cases', idToken: 'good-R' }).cases;
+  assert.deepStrictEqual([seen.length, seen[0].caseNo], [1, '900/2569'], 'follower still sees the case');
+  const rep = run("caseReport_('900/2569')");
+  assert.ok(rep.history.length >= 1 && rep.history[0].text === 'รับคำร้องทุกข์แล้ว', 'history from the old name kept');
+  run('collectAll()');
+  assert.strictEqual(logged(), n, 'same status not logged again under the new name');
+  assert.ok(/Log OK/.test(run('verifyLog()')));
   W.env.UrlFetchApp = { fetch: () => { throw new Error('no network in tests'); } };
 });
 

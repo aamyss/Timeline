@@ -38,10 +38,10 @@ function lineGet_(api) {
   if (api === 'stats') {
     if (!lc.publicStats) return { ok: true, off: true };
     var cache = CacheService.getScriptCache();
-    var hit = cache.get('PUBLIC_STATS_V3');
+    var hit = cache.get('PUBLIC_STATS_V4');
     if (hit) return JSON.parse(hit);
     var out = publicStats_();
-    cache.put('PUBLIC_STATS_V3', JSON.stringify(out), 3 * 3600);
+    cache.put('PUBLIC_STATS_V4', JSON.stringify(out), 3 * 3600);
     return out;
   }
   return { ok: false, error: 'Unknown request' };
@@ -71,7 +71,7 @@ function publicStats_(ctx) {
       if (per[d.slice(0, 7)]) { per[d.slice(0, 7)].cases[f] = true; all.cases[f] = true; }
     });
   });
-  var docs = Core.caseDocuments(ctx.allRows, ctx.c.markers);
+  var docs = Core.caseDocuments(ctx.allRows, ctx.c.markers, ctx.cases);
   Object.keys(docs).forEach(function (k) {
     var f = k.split('/')[0];
     if (ctx.cases[f] && ctx.cases[f].deleted) return;
@@ -112,6 +112,16 @@ function lineUser_(idToken) {
 
 function linksTab_() {
   return ensureTab_(ss_(), 'Links', LINK_HEADERS, 'LINE users who follow a case. user = a one-way hash of their LINE ID, not the ID itself.');
+}
+
+/** A case folder was renamed: its followers follow the new name (their code is unchanged). */
+function renameLinks_(from, to) {
+  var sh = linksTab_();
+  if (sh.getLastRow() < 2) return;
+  var col = sh.getRange(2, 2, sh.getLastRow() - 1, 1);
+  var v = col.getValues();
+  if (!v.some(function (r) { return String(r[0]) === from; })) return;
+  col.setNumberFormat('@').setValues(v.map(function (r) { return [String(r[0]) === from ? cellSafe_(to) : r[0]]; }));
 }
 
 /** Cases this LINE user follows. Clearing a case's line_code (a new one is made hourly) drops its old followers. */
@@ -196,6 +206,6 @@ function saveLineSetup(o) {
   p.setProperty('LINE_LIFF_ID', liff);
   p.setProperty('LINE_CHANNEL_ID', ch);
   p.setProperty('PUBLIC_STATS', o.publicStats ? 'on' : 'off');
-  CacheService.getScriptCache().remove('PUBLIC_STATS_V3');
+  CacheService.getScriptCache().remove('PUBLIC_STATS_V4');
   return lineSetupInfo();
 }

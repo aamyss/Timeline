@@ -31,11 +31,25 @@ function menuCases() {
   var ctx = dayCtx_();
   var n = syncCasesTab_(ctx);
   var all = Object.keys(ctx.cases);
-  var gone = all.filter(function (f) { return ctx.cases[f].deleted; });
+  var moved = all.filter(function (f) { return ctx.cases[f].renamedTo; });
+  var gone = all.filter(function (f) { return ctx.cases[f].deleted && !ctx.cases[f].renamedTo; });
+  var live = all.length - moved.length - gone.length;
+  var list = function (a) { return a.length ? ': ' + a.slice(0, 5).join(', ') + (a.length > 5 ? ' …' : '') : ''; };
+  var rows = {};
+  ctx.caseList.forEach(function (c) { rows[c.folder] = c.row; });
+  var stale = ctx.caseList.filter(function (c) { return ctx.cases[c.folder] && ctx.cases[c.folder].deleted; });
   alert_((n ? n + ' case' + (n > 1 ? 's' : '') + ' added to the Cases tab.' : 'No new cases.') +
-    '\n\nCase folders seen in the log: ' + all.length + ' (' + gone.length + ' deleted, so not listed' +
-    (gone.length ? ': ' + gone.slice(0, 5).join(', ') + (gone.length > 5 ? ' …' : '') : '') + ').' +
-    '\nA case appears here once the PC reporter has seen its Inquiry Copilot folder (date_time-type_… under แฟ้มคดี).');
+    (ctx.renamed.length ? '\n\nRenamed in Inquiry Copilot, row follows the new name (code and status kept):\n' +
+      ctx.renamed.map(function (x) { return x[0] + ' → ' + x[1]; }).join('\n') : '') +
+    '\n\nCases: ' + live + '.' +
+    (moved.length ? '\nOld folder names of those cases: ' + moved.length + list(moved.map(function (f) { return f + ' → ' + ctx.cases[f].renamedTo; })) + '.' : '') +
+    (gone.length ? '\nDeleted case folders: ' + gone.length + list(gone) + '.' : '') +
+    (stale.length ? '\n\nRows you can delete (their folder no longer exists; the log keeps their history): ' +
+      stale.map(function (c) {
+        var to = ctx.cases[c.folder].renamedTo;
+        return 'row ' + c.row + ' ' + c.folder + (to && rows[to] ? ' (old name of row ' + rows[to] + ')' : '');
+      }).join(', ') + '.' : '') +
+    '\n\nA case appears here once the PC reporter has seen its Inquiry Copilot folder (date_time-type_… under แฟ้มคดี).');
 }
 
 /** Work dates and notices for one case, ready to copy into a reply when a complainant asks. */
