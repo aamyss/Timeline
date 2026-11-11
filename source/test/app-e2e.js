@@ -89,8 +89,23 @@ const srv = http.createServer((q, s) => {
   check('LINE page without ?u asks to open from LINE', /เปิดหน้านี้จากเมนูใน LINE/.test(await lp.innerText('#stats')));
   await lp.goto(lbase + '?u=AKfycbTESTdeployment0001'); await lp.waitForSelector('.num', { timeout: 5000 });
   const st = await lp.innerText('#stats');
-  check('LINE งานที่ได้ทำไปแล้ว: this month + all time, totals only', /เดือนนี้/.test(st) && /ทั้งหมด/.test(st) && /ชั่วโมงปฏิบัติหน้าที่ตามเวร/.test(st) && !/Xpander|docx/.test(st));
-  await lp.screenshot({ path: '/tmp/line-stats.png' });
+  check('LINE งานที่ได้ทำไปแล้ว: this month, totals only', /เดือนนี้/.test(st) && /ชั่วโมงปฏิบัติหน้าที่ตามเวร/.test(st) && !/Xpander|docx/.test(st));
+  check('LINE stats: one month -> no repeated all-time card, definitions shown', !/ทั้งหมด ·/.test(st) && /ยอดรวมทุกเดือนจะแสดง/.test(st) && /ตัวเลขเหล่านี้นับอย่างไร/.test(st));
+  await lp.screenshot({ path: '/tmp/line-stats.png', fullPage: true });
+  // v16: with two months, the all-time card and the month picker appear
+  const lp2 = await browser.newPage({ viewport: { width: 390, height: 844 } }); lp2.on('pageerror', e => lerr.push(e.message));
+  await lp2.route('https://static.line-scdn.net/**', r => r.fulfill({ status: 200, contentType: 'text/javascript', body: 'window.liff={init:function(){return Promise.resolve()},isLoggedIn:function(){return true},getIDToken:function(){return "tok"},login:function(){}};' }));
+  await lp2.route('https://script.google.com/**', async (route) => {
+    const u = route.request().url(); const hdr = { 'Access-Control-Allow-Origin': '*' };
+    const m = (label, n) => ({ label, onDutyHours: n, outsideHours: 1.5, cases: 3, documents: 12 });
+    const body = /api=stats/.test(u) ? { ok: true, asOf: '2026-12-05T10:00', current: '2026-12', months: [m('2026-12', 20), m('2026-11', 150)], all: Object.assign(m('2026-11', 170), { cases: 5, documents: 24 }) }
+      : { ok: true, liffId: '2001234567-AbCdEfGh', publicStats: true, casesOn: true };
+    await route.fulfill({ status: 200, contentType: 'application/json', headers: hdr, body: JSON.stringify(body) });
+  });
+  await lp2.goto(lbase + '?u=AKfycbTESTdeployment0001'); await lp2.waitForSelector('#month', { timeout: 5000 });
+  const st2 = await lp2.innerText('#stats');
+  check('LINE stats: two months -> all-time card + month picker', /ทั้งหมด · ตั้งแต่ พฤศจิกายน 2569/.test(st2) && /ดูเดือนอื่น/.test(st2) && !/ยอดรวมทุกเดือนจะแสดง/.test(st2));
+  await lp2.screenshot({ path: '/tmp/line-stats-2m.png', fullPage: true }); await lp2.close();
   await lp.goto(lbase + '?u=AKfycbTESTdeployment0001&tab=cases'); await lp.waitForTimeout(100);
   check('track button usable before the config arrives', !(await lp.isDisabled('#link')));
   await lp.fill('#code', 'zzzz zzzz'); await lp.click('#link'); await lp.waitForFunction(() => document.getElementById('codeErr').textContent, null, { timeout: 5000 });

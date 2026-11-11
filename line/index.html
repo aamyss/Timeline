@@ -29,9 +29,15 @@
   .tabs button.on { background:var(--accent); color:var(--accentfg); }
   .card { background:var(--card); border-radius:14px; padding:14px; margin-top:12px; }
   h2 { font-size:16px; margin:0 0 10px; }
-  .nums { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-  .num b { display:block; font-size:24px; line-height:1.2; font-variant-numeric:tabular-nums; }
-  .num span { font-size:14px; color:var(--muted); line-height:1.35; display:block; margin-top:2px; }
+  .nums { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .num { background:var(--chip); border-radius:12px; padding:12px 12px 11px; }
+  .num b { display:block; font-size:30px; line-height:1.15; font-variant-numeric:tabular-nums; }
+  .num b small { font-size:16px; font-weight:600; margin-left:4px; }
+  .num span { font-size:14px; color:var(--muted); line-height:1.35; display:block; margin-top:4px; }
+  dl.defs { margin:0; font-size:14px; line-height:1.45; }
+  dl.defs dt { font-weight:600; margin-top:10px; }
+  dl.defs dt:first-child { margin-top:0; }
+  dl.defs dd { margin:2px 0 0; color:var(--muted); }
   .muted { color:var(--muted); font-size:14px; }
   .row { display:grid; grid-template-columns:124px minmax(0,1fr); gap:8px; padding:6px 0; border-top:1px solid var(--line); font-size:15px; }
   .row:first-of-type { border-top:0; }
@@ -123,11 +129,18 @@
   /* ---------- ผลงาน: totals only ---------- */
   function statCard(title, p, extra) {
     return '<div class="card"><h2>' + esc(title) + '</h2>' + (extra || '') + '<div class="nums">' +
-      '<div class="num"><b>' + num(p.onDutyHours) + '</b><span>ชั่วโมงปฏิบัติหน้าที่ตามเวร</span></div>' +
-      '<div class="num"><b>' + num(p.outsideHours) + '</b><span>ชั่วโมงทำงานนอกเวลาเวร (โดยประมาณ)</span></div>' +
-      '<div class="num"><b>' + num(p.cases) + '</b><span>คดีที่ดำเนินการ</span></div>' +
-      '<div class="num"><b>' + num(p.documents) + '</b><span>เอกสารที่จัดทำ</span></div></div></div>';
+      '<div class="num"><b>' + num(p.onDutyHours) + '<small>ชม.</small></b><span>ชั่วโมงปฏิบัติหน้าที่ตามเวร</span></div>' +
+      '<div class="num"><b>' + num(p.outsideHours) + '<small>ชม.</small></b><span>ชั่วโมงทำงานนอกเวลาเวร (โดยประมาณ)</span></div>' +
+      '<div class="num"><b>' + num(p.cases) + '<small>คดี</small></b><span>คดีที่ดำเนินการ</span></div>' +
+      '<div class="num"><b>' + num(p.documents) + '<small>ฉบับ</small></b><span>เอกสารที่จัดทำ</span></div></div></div>';
   }
+  /* What each number means: so a total is read as what it is, not as all the work done. */
+  var DEFS = '<div class="card" id="defs"><h2>ตัวเลขเหล่านี้นับอย่างไร</h2><dl class="defs">' +
+    '<dt>ชั่วโมงปฏิบัติหน้าที่ตามเวร</dt><dd>เวลาตามตารางเวรที่ผ่านมาแล้ว นับเฉพาะช่วงที่มีบันทึกการทำงานรองรับ</dd>' +
+    '<dt>ชั่วโมงทำงานนอกเวลาเวร</dt><dd>ค่าประมาณจากบันทึกการทำงานที่เกิดขึ้นนอกตารางเวร ไม่ใช่การลงเวลาเข้า-ออกงาน</dd>' +
+    '<dt>คดีที่ดำเนินการ</dt><dd>คดีที่มีการทำงานในสำนวนในช่วงเวลานั้น นับคดีละหนึ่งครั้ง</dd>' +
+    '<dt>เอกสารที่จัดทำ</dt><dd>เอกสารที่สร้างขึ้นใหม่ในแฟ้มคดี ไม่รวมภาพถ่ายและแบบฟอร์มที่ระบบสร้างอัตโนมัติ</dd>' +
+    '</dl><div class="muted" style="margin-top:12px">งานบางส่วน เช่น การประสานงานทางโทรศัพท์ หรืองานภาคสนามที่ไม่มีเอกสาร อาจไม่ปรากฏในตัวเลขเหล่านี้</div></div>';
   function renderStats(j) {
     if (j.off) { $('stats').innerHTML = '<div class="card muted">ยังไม่เปิดเผยข้อมูลงานที่ได้ทำไปแล้ว</div>'; return; }
     if (!j.months) { $('stats').innerHTML = '<div class="card muted">กำลังอัปเดตข้อมูล กรุณาเปิดใหม่ภายหลัง</div>'; return; }
@@ -138,7 +151,10 @@
     if (others.length) {
       h += '<div id="pick"></div>';
     }
-    h += statCard('ทั้งหมด · ตั้งแต่ ' + thMonth(j.all.label), j.all);
+    // With a single month the all-time card would only repeat it, so it waits for a second month.
+    if (j.months.length > 1) h += statCard('ทั้งหมด · ตั้งแต่ ' + thMonth(j.all.label), j.all);
+    else h += '<div class="muted" style="margin:10px 4px 0">เริ่มบันทึกตั้งแต่ ' + esc(thMonth(j.all.label)) + ' ยอดรวมทุกเดือนจะแสดงเมื่อมีข้อมูลมากกว่าหนึ่งเดือน</div>';
+    h += DEFS;
     h += '<div class="muted" style="margin:12px 4px 0">นับจากบันทึกการทำงานอัตโนมัติ ข้อมูล ณ ' +
       esc(thDate(j.asOf.slice(0, 10))) + ' เวลา ' + esc(j.asOf.slice(11, 16)) + ' น. ไม่แสดงรายละเอียดคดีหรือบุคคล</div>';
     $('stats').innerHTML = h;
