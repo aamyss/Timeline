@@ -12,7 +12,11 @@ function makeEnv() {
   const props = {};
   const cache = {};
   class Range {
-    constructor(sh, r, c, nr, nc) { Object.assign(this, { sh, r, c, nr, nc }); }
+    constructor(sh, r, c, nr, nc) {
+      // Real Sheets refuses a range past the last column; the fake does too, so a trimmed tab is tested honestly.
+      if (c + nc - 1 > sh.maxCols) throw new Error('range outside the sheet: column ' + (c + nc - 1) + ' of ' + sh.maxCols + ' in ' + sh.name);
+      Object.assign(this, { sh, r, c, nr, nc });
+    }
     getValues() {
       const out = [];
       for (let i = 0; i < this.nr; i++) {
@@ -42,12 +46,16 @@ function makeEnv() {
     getSheet() { return this.sh; } getRow() { return this.r; } getColumn() { return this.c; } getNumRows() { return this.nr; } getNumColumns() { return this.nc; }
   }
   class Sheet {
-    constructor(name) { this.name = name; this.data = []; }
+    constructor(name) { this.name = name; this.data = []; this.maxCols = 26; }   // new tabs start A–Z, like Sheets
     getName() { return this.name; }
     getLastRow() { for (let i = this.data.length - 1; i >= 0; i--) if ((this.data[i] || []).some(x => x !== '' && x !== undefined)) return i + 1; return 0; }
     getMaxRows() { return 1000; }
+    getMaxColumns() { return this.maxCols; }
+    getLastColumn() { let n = 0; this.data.forEach(row => (row || []).forEach((x, j) => { if (x !== '' && x !== undefined) n = Math.max(n, j + 1); })); return n; }
+    insertColumnsAfter(after, k) { this.maxCols += k; }
+    deleteColumns(from, k) { this.data.forEach(row => { if (row) row.splice(from - 1, k); }); this.maxCols -= k; }
     getRange(r, c, nr, nc) { return new Range(this, r, c, nr || 1, nc || 1); }
-    appendRow(a) { this.data[this.getLastRow()] = a.slice(); }
+    appendRow(a) { if (a.length > this.maxCols) this.maxCols = a.length; this.data[this.getLastRow()] = a.slice(); }
     deleteRow(r) { this.data.splice(r - 1, 1); }
     setFrozenRows() {} hideSheet() {}
     protect() { const p = { setDescription: () => p, setWarningOnly: () => p }; return p; }

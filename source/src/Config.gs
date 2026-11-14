@@ -95,8 +95,43 @@ function ensureTab_(ss, name, headers, note) {
     sh.setFrozenRows(1);
     sh.getRange(1, 1, sh.getMaxRows(), headers.length).setNumberFormat('@');
     if (note) sh.getRange(1, 1).setNote(note);
+    fitColumns_(sh, headers.length);
   }
   return sh;
+}
+
+/**
+ * Keeps a tab exactly n columns wide. A spreadsheet holds at most 10 million cells, empty ones
+ * included, and a new tab starts with 26 columns (A–Z), so a 14-column log row would use 26.
+ * Missing columns are added; extra ones are removed only when nothing is in them (anything typed
+ * there is kept and reported). New log fields go into the detail JSON, so the width rarely changes;
+ * when a version adds a column, this adds it back. Returns 'added', 'trimmed', 'kept' or ''.
+ */
+function fitColumns_(sh, n) {
+  var max = sh.getMaxColumns();
+  if (max < n) { sh.insertColumnsAfter(max, n - max); return 'added'; }
+  if (max === n) return '';
+  if (sh.getLastColumn() > n) return 'kept';
+  sh.deleteColumns(n + 1, max - n);
+  return 'trimmed';
+}
+
+/** Hourly: every known tab at its exact width (cheap once done: one size check per tab). */
+function fitTabs_() {
+  var ss = ss_();
+  var widths = { Cases: CASE_HEADERS.length, Links: LINK_HEADERS.length, Seals: 7, Roster: 4, Places: 4, Index: 2 };
+  var done = [], kept = [];
+  logTabs_().concat(Object.keys(widths).map(function (k) { return ss.getSheetByName(k); }))
+    .forEach(function (sh) {
+      if (!sh) return;
+      var name = sh.getName();
+      var r = fitColumns_(sh, /^Log \d{4}$/.test(name) ? LOG_HEADERS.length : widths[name]);
+      if (r === 'trimmed' || r === 'added') done.push(name);
+      if (r === 'kept') kept.push(name);
+    });
+  if (kept.length) setStatus_('columns', false, 'Extra columns kept (something is typed there): ' + kept.join(', '));
+  else if (done.length) setStatus_('columns', true, 'Column count fixed: ' + done.join(', '));
+  return done.length ? 'Columns fitted: ' + done.join(', ') : '';
 }
 
 function installTriggers() {

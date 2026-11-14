@@ -25,6 +25,9 @@ function logTab_(year) {
     sh.setFrozenRows(1);
     sh.protect().setDescription('Work timeline log: add rows only through the script')
       .setWarningOnly(true);
+    fitColumns_(sh, LOG_HEADERS.length);   // 14 columns, not the default 26 (see fitColumns_)
+  } else if (sh.getMaxColumns() < LOG_HEADERS.length) {
+    fitColumns_(sh, LOG_HEADERS.length);   // a version that adds a column
   }
   return sh;
 }

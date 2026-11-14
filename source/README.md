@@ -139,6 +139,7 @@ After updating the script, run **Work timeline → Set up** once more. It adds t
 - Deleted and renamed files are logged at the time the report reached Google.
 - OneDrive "online-only" files are listed without a fingerprint, so they're never downloaded just to be checked.
 - A calendar event is your own entry, so it counts as self-reported. Its "entered" time (from Google) shows when you wrote it.
+- **Size (v17):** a Google spreadsheet holds at most 10 million cells, empty ones included. At about 600 log rows a day, a 14-column log uses about 3.2 million cells a year. Every hour the script keeps each tab at exactly the columns it uses (the log at 14, not the default 26). It only removes columns with nothing in them; if you typed something in an extra column, that column is kept and the status says so. Older years will need moving to an archive sheet before the limit (not built yet).
 
 ## Menu reference
 - **Links and PC setup code**: day view link and the code for the PC installer.

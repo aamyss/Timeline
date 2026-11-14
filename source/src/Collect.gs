@@ -32,6 +32,12 @@ function collectEverything_(deadline, report) {
   } catch (e) {
     report.push('Cases tab error: ' + e.message);
   }
+  try {
+    var fitted = fitTabs_();
+    if (fitted) report.push(fitted);
+  } catch (e) {
+    setStatus_('columns', false, e.message);
+  }
 }
 
 function collectCalendars_() {

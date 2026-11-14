@@ -790,6 +790,39 @@ test('v15: Cases tab row follows a renamed case folder, keeping its code, status
   W.env.UrlFetchApp = { fetch: () => { throw new Error('no network in tests'); } };
 });
 
+test('v17: tabs keep only the columns they use; typed columns are kept; logging and verify unaffected', () => {
+  const tab = n => W.ss.sheets.find(s => s.name === n);
+  const log = W.ss.sheets.find(s => /^Log /.test(s.name));
+  // an existing tab still at the default 26 columns, as in the real sheet before v17
+  log.maxCols = 26; tab('Seals').maxCols = 26;
+  tab('Roster').maxCols = 26; tab('Roster').data[1][7] = 'my own note';   // something typed in column H
+  const rows = log.getLastRow();
+  const msg = run('fitTabs_()');
+  assert.ok(/Log \d{4}/.test(msg) && /Seals/.test(msg), msg);
+  assert.strictEqual(log.maxCols, 14, 'log = 13 fields + row_hash');
+  assert.strictEqual(tab('Seals').maxCols, 7);
+  assert.strictEqual(tab('Cases').maxCols, 12);
+  assert.strictEqual(tab('Index').maxCols, 2);
+  assert.strictEqual(tab('Roster').maxCols, 26, 'column with something typed in is not removed');
+  assert.strictEqual(tab('Roster').data[1][7], 'my own note');
+  assert.strictEqual(W.env.PropertiesService.getScriptProperties().getProperty('STATUS').indexOf('Roster') > 0, true, 'kept columns reported');
+  assert.strictEqual(log.getLastRow(), rows, 'no log rows touched');
+  assert.strictEqual(run('fitTabs_()'), '', 'second run changes nothing');
+  run("appendRows_([{ event_time: '2026-11-14T10:00:00+07:00', source: 'note', kind: 'note', title: 'after trim' }])");
+  assert.strictEqual(log.getLastRow(), rows + 1, 'appending still works in a 14-column tab');
+  assert.ok(/Log OK/.test(run('verifyLog()')), 'hash chain unaffected');
+  // a later version that adds a column gets it back automatically
+  log.maxCols = 13;
+  run("logTab_('" + log.name.slice(4) + "')");
+  assert.strictEqual(log.maxCols, 14);
+  // next year's tab starts at 14 columns
+  const next = String(Number(log.name.slice(4)) + 1);
+  assert.strictEqual(run("logTab_('" + next + "').getMaxColumns()"), 14);
+  W.ss.deleteSheet(tab('Log ' + next));
+  tab('Roster').data[1][7] = ''; run('fitTabs_()');
+  assert.strictEqual(tab('Roster').maxCols, 4, 'trimmed once the typed cell is cleared');
+});
+
 test('verify catches an edited row and an edited seal', () => {
   assert.ok(/Log OK/.test(run('verifyLog()')));
   const log = W.ss.sheets.find(s => /^Log /.test(s.name));

@@ -41,6 +41,7 @@ function casesTab_() {
   var ss = ss_();
   var sh = ss.getSheetByName('Cases');
   if (!sh) sh = ensureTab_(ss, 'Cases', CASE_HEADERS);
+  if (sh.getMaxColumns() < CASE_HEADERS.length) fitColumns_(sh, CASE_HEADERS.length);
   var head = sh.getRange(1, 1, 1, CASE_HEADERS.length).getValues()[0];
   if (CASE_HEADERS.some(function (h, i) { return String(head[i]) !== h; })) {
     sh.getRange(1, 1, 1, CASE_HEADERS.length).setValues([CASE_HEADERS]).setFontWeight('bold');
