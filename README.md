@@ -7,3 +7,5 @@ A small home-screen web app that shows a personal work timeline kept in Google S
 - Hosted with GitHub Pages.
 
 `line/` is the LINE page (LIFF) for the work OA. It too holds no data or keys; the web app address comes from the LIFF endpoint URL set in the LINE console.
+
+`cases/` is the งานคดี page (LIFF) for the Notify bot: case to-do lists, daily review and proof. It holds no data or keys either; the web app address comes from its LIFF endpoint URL (`?u=<deployment ID>`), and every request is checked against the owner's LINE sign-in by the bot's script.
