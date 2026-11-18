@@ -72,6 +72,8 @@
   .err { color:var(--red); }
   .sets label { display:inline-flex; gap:4px; align-items:center; margin:2px 10px 2px 0; font-size:15px; }
   @media (min-width: 900px) { .wrap { max-width:820px; } body { font-size:17px; } }
+  .grouphead { display:block; width:100%; text-align:left; background:none; border:0; color:inherit; font:inherit; padding:0 0 6px; margin-bottom:2px; border-bottom:1px solid var(--line); cursor:pointer; }
+  .btn.red { background:#b42318; color:#fff; }
   .thumb { max-width:100%; max-height:180px; border-radius:8px; margin-top:6px; display:none; }
 </style>
 </head>
@@ -245,9 +247,18 @@
       if (filter === 'late') return t.due && t.due <= D.today;
       if (filter === 'nodate') return !t.due;
       return true;
-    }).sort(byPrioDue);
-    $('main').innerHTML = list.length ? '<div class="card">' + list.map(function (t) { return taskHtml(t, true); }).join('') + '</div>'
-      : '<div class="card muted">ไม่มีงาน</div>';
+    });
+    if (!list.length) { $('main').innerHTML = '<div class="card muted">ไม่มีงาน</div>'; return; }
+    var groups = {};
+    list.forEach(function (t) { (groups[t.caseId] = groups[t.caseId] || []).push(t); });
+    $('main').innerHTML = Object.keys(groups).sort().map(function (cid) {
+      var c = caseOf(cid) || { id: cid, name: cid };
+      var ts = groups[cid].sort(byPrioDue);
+      return '<div class="card"><button class="grouphead" data-open="' + esc(cid) + '"><span class="id">' + esc(cid) + '</span> ' +
+        '<span class="name">' + esc(c.name) + '</span> <span class="muted">· ' + ts.length + ' งาน ›</span></button>' +
+        ts.map(function (t) { return taskHtml(t); }).join('') + '</div>';
+    }).join('');
+    $('main').querySelectorAll('[data-open]').forEach(function (el) { el.onclick = function () { openCase = el.getAttribute('data-open'); renderCase(true); }; });
     bindTasks($('main'));
   }
 
@@ -281,14 +292,25 @@
       '<input type="file" class="pfPhoto" accept="image/*"><img class="thumb pfThumb" alt="">' +
       '<button class="btn pfBtn">บันทึกหลักฐาน</button></div>' +
 
+      (c.active
+        ? '<div class="card form"><h2>ปิดคดี</h2><div class="muted">งานที่ยังค้างจะถูกยกเลิก (กลับมาได้ถ้าเปิดคดีอีกครั้ง)</div>' +
+          '<input type="text" id="clNote" placeholder="หมายเหตุ เช่น ส่งสำนวนตามหนังสือที่ ... (ไม่บังคับ)">' +
+          '<div class="two"><button class="btn green" id="clSent">ส่งสำนวนแล้ว</button><button class="btn red" id="clClose">ปิดคดี</button></div></div>'
+        : '<div class="card form"><div class="chip">' + esc(c.status) + '</div><button class="btn ghost" id="reopen">เปิดคดีอีกครั้ง</button></div>') +
       (done.length ? '<div class="card"><h2>เสร็จแล้ว (' + done.length + ')</h2>' + done.map(function (t) { return taskHtml(t); }).join('') + '</div>' : '') +
       '<div class="card"><h2>ประวัติ</h2><div id="hist" class="muted">กำลังโหลด…</div></div>';
 
     bindTasks($('sheetBody'));
     $('rename').onclick = function () {
-      var n = prompt('ชื่อคดีใหม่ (ไม่ใส่ชื่อเต็มบุคคล)', c.name);
+      var n = prompt('ชื่อคดีใหม่', c.name);
       if (n && n.trim() && n.trim() !== c.name) act({ ct: 'rename', caseId: c.id, name: n.trim() }, 'เปลี่ยนชื่อแล้ว');
     };
+    var closeAs = function (status) {
+      if (!confirm(c.id + ' ' + c.name + '\n' + status + '\nงานค้าง ' + open.length + ' งานจะถูกยกเลิก')) return;
+      act({ ct: 'closeCase', caseId: c.id, status: status, note: $('clNote').value.trim() }, c.id + ' ' + status).then(loadHistory);
+    };
+    if ($('clSent')) { $('clSent').onclick = function () { closeAs('ส่งสำนวนแล้ว'); }; $('clClose').onclick = function () { closeAs('ปิด'); }; }
+    if ($('reopen')) $('reopen').onclick = function () { act({ ct: 'reopen', caseId: c.id }, 'เปิด ' + c.id + ' อีกครั้งแล้ว').then(loadHistory); };
     $('cStatus').onchange = function () { act({ ct: 'caseStatus', caseId: c.id, status: this.value }, 'เปลี่ยนสถานะแล้ว'); };
     $('rvBtn').onclick = function () {
       this.disabled = true;
@@ -386,7 +408,7 @@
     $('sheetTitle').textContent = 'คดีใหม่';
     var types = ['มีตัวควบคุม', 'ประกันตัว', 'หมายเรียก', 'รู้ตัวหลบหนี', 'ไม่รู้ตัว', 'ตรวจสอบ'];
     $('sheetBody').innerHTML = '<div class="card form">' +
-      '<input type="text" id="ncName" placeholder="ชื่อคดี (ไม่ใส่ชื่อเต็มบุคคล) เช่น ลักทรัพย์ (ส.)">' +
+      '<input type="text" id="ncName" placeholder="ชื่อคดี เช่น ลักทรัพย์ นายสมชาย">' +
       '<input type="text" id="ncType" placeholder="ประเภทคดี เช่น ลักทรัพย์">' +
       '<div class="two"><select id="ncFile">' + types.map(function (t) { return '<option>' + t + '</option>'; }).join('') + '</select>' +
       '<input type="text" id="ncNo" placeholder="เลขคดี 900/2569"></div>' +
