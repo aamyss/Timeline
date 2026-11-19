@@ -113,15 +113,34 @@
 
   var D = null, view = 'cases', filter = 'all', openCase = null, token = null;
 
+  var CFG = null;
+  /* LINE keeps a browser signed in for weeks, but its ID token lasts about an hour. On PC the old token is
+     still handed out the next morning, so check it here and sign in again (LINE does it without a prompt). */
+  function relogin() {
+    try { if (sessionStorage.getItem('ct.relogin') === '1') return false; sessionStorage.setItem('ct.relogin', '1'); } catch (e) { /* ignore */ }
+    try { liff.logout(); } catch (e) { /* ignore */ }
+    liff.login({ redirectUri: location.href });
+    return true;
+  }
   function idToken() {
     if (token) return Promise.resolve(token);
     return fetch(API + '?ct=config', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
       if (!j.ok || !j.liffId) throw new Error('ยังไม่ได้ตั้ง LIFF ID ในสคริปต์');
+      CFG = j;
       return liff.init({ liffId: j.liffId });
     }).then(function () {
       if (!liff.isLoggedIn()) { liff.login({ redirectUri: location.href }); throw new Error('กำลังเข้าสู่ระบบ LINE…'); }
+      var dec = null;
+      try { dec = liff.getDecodedIDToken(); } catch (e) { /* ignore */ }
+      if (dec && CFG.channelId && String(dec.aud) !== String(CFG.channelId)) {
+        throw new Error('ลิงก์นี้เป็นของเก่า กรุณาเปิด https://liff.line.me/' + CFG.liffId);
+      }
+      if (!dec || !dec.exp || dec.exp * 1000 < Date.now() + 60000) {
+        if (relogin()) throw new Error('กำลังเข้าสู่ระบบ LINE ใหม่…');
+      }
       token = liff.getIDToken();
       if (!token) throw new Error('กรุณาปิดแล้วเปิดใหม่จากใน LINE');
+      try { sessionStorage.removeItem('ct.relogin'); } catch (e) { /* ignore */ }
       return token;
     });
   }
@@ -132,7 +151,10 @@
         headers: { 'Content-Type': 'text/plain;charset=utf-8' } });
     }).then(function (r) { return r.json(); }).then(function (j) {
       if (j.needClaim) { showClaim(); throw new Error('ใส่รหัสเจ้าของก่อน'); }
-      if (!j.ok) { if (/ยืนยันตัวตน/.test(j.error || '')) token = null; throw new Error(j.error || 'เกิดข้อผิดพลาด'); }
+      if (!j.ok) {
+        if (/ยืนยันตัวตน/.test(j.error || '')) { token = null; if (relogin()) throw new Error('กำลังเข้าสู่ระบบ LINE ใหม่…'); }
+        throw new Error(j.error || 'เกิดข้อผิดพลาด');
+      }
       if (j.cases) D = j;
       return j;
     });
