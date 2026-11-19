@@ -117,7 +117,11 @@
   /* LINE keeps a browser signed in for weeks, but its ID token lasts about an hour. On PC the old token is
      still handed out the next morning, so check it here and sign in again (LINE does it without a prompt). */
   function relogin() {
-    try { if (sessionStorage.getItem('ct.relogin') === '1') return false; sessionStorage.setItem('ct.relogin', '1'); } catch (e) { /* ignore */ }
+    try {   // at most one automatic sign-in a minute, so a failing sign-in can't loop
+      var last = +sessionStorage.getItem('ct.relogin') || 0;
+      if (Date.now() - last < 60000) return false;
+      sessionStorage.setItem('ct.relogin', String(Date.now()));
+    } catch (e) { /* ignore */ }
     try { liff.logout(); } catch (e) { /* ignore */ }
     liff.login({ redirectUri: location.href });
     return true;
@@ -137,6 +141,7 @@
       }
       if (!dec || !dec.exp || dec.exp * 1000 < Date.now() + 60000) {
         if (relogin()) throw new Error('กำลังเข้าสู่ระบบ LINE ใหม่…');
+        throw new Error('การเข้าสู่ระบบ LINE หมดอายุ กดรีเฟรชหน้านี้อีกครั้งในอีก 1 นาที');
       }
       token = liff.getIDToken();
       if (!token) throw new Error('กรุณาปิดแล้วเปิดใหม่จากใน LINE');
